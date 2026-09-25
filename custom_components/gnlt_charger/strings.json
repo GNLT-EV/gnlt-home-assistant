@@ -1,0 +1,356 @@
+{
+  "config": {
+    "flow_title": "{name}",
+    "step": {
+      "user": {
+        "title": "Add a GNLT charger",
+        "menu_options": {
+          "pick_device": "Set up a charger over Bluetooth (recommended)",
+          "manual": "The charger is already on the network — enter its number"
+        }
+      },
+      "bluetooth_confirm": {
+        "title": "GNLT charger nearby",
+        "description": "Home Assistant sees the charger {name} over Bluetooth. Set it up: Home Assistant will write your Wi-Fi network and its own address into the charger."
+      },
+      "pick_device": {
+        "title": "Choose the charger",
+        "description": "The charger is visible over Bluetooth only while OCPP is switched off on it: on the charger screen open Settings → Wi-Fi and switch OCPP off. Keep the Home Assistant Bluetooth adapter (or an ESPHome Bluetooth proxy) within a few metres of the charger.",
+        "data": {
+          "address": "Charger"
+        }
+      },
+      "wifi": {
+        "title": "Wi-Fi for the charger",
+        "description": "The charger {name} will join this network and connect to Home Assistant. The network must be 2.4 GHz; the name and password may contain Latin letters, digits and symbols only. The password is sent to the charger and is not stored in Home Assistant.",
+        "data": {
+          "ssid": "Network name",
+          "password": "Network password",
+          "host": "Home Assistant address in your network",
+          "port": "Port for chargers",
+          "plug_and_charge_off": "Start charging by command, not by plugging in"
+        },
+        "data_description": {
+          "host": "The charger connects to this address. Usually detected automatically — check that it is the address of Home Assistant in your home network.",
+          "port": "The same port for all chargers. Do not open it to the internet.",
+          "plug_and_charge_off": "Recommended. Then every charge is visible and controllable in Home Assistant. To start charging automatically when the cable is plugged in, use the \"Start when the cable is connected\" switch."
+        }
+      },
+      "passport": {
+        "title": "Charger version",
+        "description": "Charger {serial} is set up. Check its version: it limits the current slider. If the charger reported it itself, it is already selected."
+      },
+      "enable_ocpp": {
+        "title": "Last step — on the charger",
+        "description": "1. Wait until the Wi-Fi icon appears on the charger screen — this means the network name and password were accepted.\n2. Then open Settings → Wi-Fi on the charger and switch OCPP on.\n\nThis step is done by hand, on the charger itself. Press \"Submit\" when OCPP is on — Home Assistant will wait for charger {serial} to connect."
+      },
+      "not_connected": {
+        "title": "The charger has not connected yet",
+        "description": "Charger {serial} has not come to Home Assistant within 10 minutes. Check:\n• the Wi-Fi icon is on the charger screen (if not — the name or password is wrong, or the network is 5 GHz only);\n• OCPP is switched on in Settings → Wi-Fi;\n• Home Assistant is reachable at {url} from your network.\n\nYou can add the charger anyway — it will appear as soon as it connects."
+      },
+      "manual": {
+        "title": "Charger already on the network",
+        "data": {
+          "identity": "Serial number",
+          "preset": "Charger version",
+          "port": "Port for chargers"
+        },
+        "data_description": {
+          "identity": "12 digits, printed on the charger."
+        }
+      },
+      "manual_address": {
+        "title": "Enter the address in the charger",
+        "description": "In the OCPP settings of the charger enter:\n\n- server address: `{url}`\n- ChargeID: `{serial}`\n\nThe address starts with **ws://**, not wss://. Then switch OCPP on in Settings → Wi-Fi on the charger. If Home Assistant runs in Docker without host networking, this address may be the container's own - then enter the address of the computer in your home network (or set it in Settings → System → Network → Local network)."
+      },
+      "discovery_confirm": {
+        "title": "Charger {serial} connected",
+        "description": "Charger {serial} connected to Home Assistant. Choose its version to add it.",
+        "data": {
+          "preset": "Charger version"
+        }
+      }
+    },
+    "progress": {
+      "provision": "Writing the settings into the charger over Bluetooth. Stay close to the charger, it takes about half a minute.",
+      "wait_connect": "Waiting for the charger to connect to Home Assistant (up to 10 minutes)."
+    },
+    "error": {
+      "no_devices": "No charger found over Bluetooth. Switch OCPP off on the charger (Settings → Wi-Fi) and try again.",
+      "ssid_ascii": "The charger accepts only Latin letters, digits and symbols in the network name. Rename the network in the router settings.",
+      "ssid_long": "Network name is longer than 32 characters.",
+      "password_ascii": "The charger accepts only Latin letters, digits and symbols in the password.",
+      "password_long": "Password is longer than 32 characters.",
+      "host_ascii": "The address may contain Latin letters, digits and symbols only.",
+      "host_long": "The address is too long for the charger (128 characters at most).",
+      "host_empty": "Enter the address of Home Assistant.",
+      "port_busy": "This port is taken by another program. Choose another one.",
+      "serial_invalid": "The serial number consists of 12 digits.",
+      "ble_not_found": "The charger is out of Bluetooth range. Move closer or add an ESPHome Bluetooth proxy near it.",
+      "ble_connect_failed": "Could not connect to the charger over Bluetooth. Check that OCPP is switched off on it and try again.",
+      "ble_not_charger": "This device does not answer like a GNLT charger.",
+      "ble_no_answer": "The charger stopped answering. Move closer and try again.",
+      "ble_rejected": "The charger did not accept the settings. Check the network name and password.",
+      "ble_failed": "Setup over Bluetooth failed. Try again.",
+      "firmware_too_old": "This charger version cannot work with Home Assistant over OCPP. Contact the seller."
+    },
+    "abort": {
+      "already_configured": "This charger is already added.",
+      "already_in_progress": "This charger is already being set up.",
+      "not_supported": "This device is not a GNLT charger.",
+      "reprovisioned": "The charger received the new network settings. Switch OCPP on in Settings → Wi-Fi on the charger — it will reconnect to Home Assistant."
+    }
+  },
+  "options": {
+    "step": {
+      "init": {
+        "title": "Charger settings",
+        "data": {
+          "preset": "Charger version",
+          "auto_start": "Start when the cable is connected",
+          "resume_after_power_loss": "Continue charging after a power cut",
+          "meter_interval": "How often the charger sends readings, seconds",
+          "price": "Electricity price",
+          "night_price": "Night price",
+          "night_start": "Night tariff from",
+          "night_end": "Night tariff until"
+        },
+        "data_description": {
+          "auto_start": "Home Assistant starts the charge itself when you plug the cable into the car. Cannot be combined with the schedule: turning one on turns the other off.",
+          "resume_after_power_loss": "If the power went out during a charge, Home Assistant continues it when the power returns — as long as the cable was not unplugged. Works on chargers version 2.8 and newer.",
+          "price": "Used to calculate the cost of every charge. Empty or 0 - cost is not calculated.",
+          "night_price": "For a two-zone tariff. 0 means a single tariff. Energy delivered at night is priced at this rate even if the charge started in the day."
+        },
+        "description": "Prices are per 1 kWh, in the currency of Home Assistant ({currency})."
+      }
+    }
+  },
+  "selector": {
+    "preset": {
+      "options": {
+        "1_3_5": "Single-phase 3.5 kW — 16 A",
+        "1_7": "Single-phase 7 kW — 32 A",
+        "1_11": "Single-phase 11 kW — 48 A",
+        "3_11": "Three-phase 11 kW — 3 × 16 A",
+        "3_22": "Three-phase 22 kW — 3 × 32 A"
+      }
+    }
+  },
+  "entity": {
+    "sensor": {
+      "status": {
+        "name": "Status",
+        "state": {
+          "available": "Free",
+          "preparing": "Cable connected",
+          "charging": "Charging",
+          "suspendedev": "Paused by the car",
+          "suspendedevse": "Paused by the charger",
+          "finishing": "Charge finished",
+          "reserved": "Reserved",
+          "unavailable": "Out of service",
+          "faulted": "Fault"
+        }
+      },
+      "error": {
+        "name": "Charger message",
+        "state": {
+          "noerror": "No messages",
+          "connectorlockfailure": "Connector lock did not work",
+          "evcommunicationerror": "Charger and car did not agree",
+          "groundfailure": "Charger reported an earthing error",
+          "hightemperature": "Charger overheated",
+          "internalerror": "Internal charger error",
+          "locallistconflict": "Card list mismatch",
+          "othererror": "Other message",
+          "overcurrentfailure": "Current above the limit",
+          "overvoltage": "Mains voltage above normal",
+          "powermeterfailure": "Charger meter error",
+          "powerswitchfailure": "Power relay error",
+          "readerfailure": "Card reader error",
+          "resetfailure": "Charger could not restart",
+          "undervoltage": "Mains voltage below normal",
+          "weaksignal": "Weak Wi-Fi signal"
+        }
+      },
+      "power": {
+        "name": "Power"
+      },
+      "current_l1": {
+        "name": "Current L1"
+      },
+      "current_l2": {
+        "name": "Current L2"
+      },
+      "current_l3": {
+        "name": "Current L3"
+      },
+      "voltage_l1": {
+        "name": "Voltage L1"
+      },
+      "voltage_l2": {
+        "name": "Voltage L2"
+      },
+      "voltage_l3": {
+        "name": "Voltage L3"
+      },
+      "session_energy": {
+        "name": "Energy of this charge"
+      },
+      "total_energy": {
+        "name": "Energy total"
+      },
+      "temperature": {
+        "name": "Temperature"
+      },
+      "price_now": {
+        "name": "Price now"
+      },
+      "session_cost": {
+        "name": "Cost of this charge"
+      },
+      "cost_today": {
+        "name": "Cost today"
+      },
+      "cost_month": {
+        "name": "Cost this month"
+      },
+      "energy_today": {
+        "name": "Energy today"
+      },
+      "energy_month": {
+        "name": "Energy this month"
+      },
+      "sessions_month": {
+        "name": "Charges this month"
+      },
+      "last_session": {
+        "name": "Last charge"
+      },
+      "next_start": {
+        "name": "Next scheduled start"
+      }
+    },
+    "binary_sensor": {
+      "connected": {
+        "name": "Connected"
+      },
+      "is_charging": {
+        "name": "Charging"
+      },
+      "cable": {
+        "name": "Cable"
+      },
+      "charging_without_session": {
+        "name": "Charging started by the charger itself",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "empty_session": {
+        "name": "The car did not start charging",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "out_of_service": {
+        "name": "Connector out of service",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      }
+    },
+    "number": {
+      "current_limit": {
+        "name": "Current limit"
+      }
+    },
+    "switch": {
+      "charging": {
+        "name": "Charging"
+      },
+      "auto_start": {
+        "name": "Start when the cable is connected"
+      },
+      "resume_after_power_loss": {
+        "name": "Continue after a power cut"
+      },
+      "plug_and_charge": {
+        "name": "Plug and charge"
+      },
+      "schedule": {
+        "name": "Charge by schedule"
+      },
+      "schedule_stop_at_end": {
+        "name": "Stop at the end of the schedule"
+      }
+    },
+    "button": {
+      "restart": {
+        "name": "Restart"
+      },
+      "refresh": {
+        "name": "Refresh readings"
+      },
+      "force_stop": {
+        "name": "Interrupt charging"
+      }
+    },
+    "time": {
+      "schedule_start": {
+        "name": "Schedule: start time"
+      },
+      "schedule_end": {
+        "name": "Schedule: stop time"
+      }
+    },
+    "select": {
+      "schedule_days": {
+        "name": "Schedule: days",
+        "state": {
+          "all": "Every day",
+          "weekdays": "Weekdays",
+          "weekends": "Weekends"
+        }
+      }
+    }
+  },
+  "exceptions": {
+    "not_connected": {
+      "message": "The charger is not connected to Home Assistant."
+    },
+    "no_answer": {
+      "message": "The charger did not answer in time. Try again."
+    },
+    "call_error": {
+      "message": "The charger could not process the command ({detail})."
+    },
+    "rejected": {
+      "message": "The charger did not accept the command ({detail})."
+    },
+    "current_out_of_range": {
+      "message": "The current must be within {detail} A."
+    },
+    "already_charging": {
+      "message": "The charge is already running."
+    },
+    "unavailable": {
+      "message": "The charger is out of service now."
+    },
+    "no_session": {
+      "message": "This charge was started by the charger itself and cannot be stopped with the usual command. Use the \"Interrupt charging\" button or unplug the cable."
+    },
+    "nothing_to_interrupt": {
+      "message": "Nothing to interrupt: the charger is not charging by itself right now. To stop a normal charge, use the \"Charging\" switch."
+    },
+    "not_supported": {
+      "message": "This charger does not support this setting over OCPP."
+    },
+    "replug": {
+      "message": "The car did not take current last time, and the charger will not accept a new start. Unplug the cable, plug it in again and start."
+    }
+  }
+}

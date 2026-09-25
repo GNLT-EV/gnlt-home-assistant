@@ -1,0 +1,138 @@
+{
+  "entity": {
+    "sensor": {
+      "status": {
+        "default": "mdi:ev-station",
+        "state": {
+          "available": "mdi:ev-station",
+          "preparing": "mdi:ev-plug-type2",
+          "charging": "mdi:battery-charging",
+          "suspendedev": "mdi:pause-circle-outline",
+          "suspendedevse": "mdi:pause-circle-outline",
+          "finishing": "mdi:check-circle-outline",
+          "reserved": "mdi:clock-outline",
+          "unavailable": "mdi:power-plug-off-outline",
+          "faulted": "mdi:alert-circle-outline"
+        }
+      },
+      "error": {
+        "default": "mdi:alert-circle-outline",
+        "state": {
+          "noerror": "mdi:check-circle-outline"
+        }
+      },
+      "current_l1": {
+        "default": "mdi:current-ac"
+      },
+      "current_l2": {
+        "default": "mdi:current-ac"
+      },
+      "current_l3": {
+        "default": "mdi:current-ac"
+      },
+      "session_energy": {
+        "default": "mdi:battery-charging-outline"
+      },
+      "total_energy": {
+        "default": "mdi:counter"
+      },
+      "price_now": {
+        "default": "mdi:cash"
+      },
+      "session_cost": {
+        "default": "mdi:cash"
+      },
+      "cost_today": {
+        "default": "mdi:cash-multiple"
+      },
+      "cost_month": {
+        "default": "mdi:cash-multiple"
+      },
+      "energy_today": {
+        "default": "mdi:lightning-bolt"
+      },
+      "energy_month": {
+        "default": "mdi:calendar-month"
+      },
+      "sessions_month": {
+        "default": "mdi:counter"
+      },
+      "last_session": {
+        "default": "mdi:history"
+      },
+      "next_start": {
+        "default": "mdi:calendar-clock"
+      }
+    },
+    "binary_sensor": {
+      "charging_without_session": {
+        "default": "mdi:check-circle-outline",
+        "state": {
+          "on": "mdi:alert-circle-outline"
+        }
+      },
+      "empty_session": {
+        "default": "mdi:check-circle-outline",
+        "state": {
+          "on": "mdi:alert-circle-outline"
+        }
+      },
+      "out_of_service": {
+        "default": "mdi:check-circle-outline",
+        "state": {
+          "on": "mdi:cancel"
+        }
+      }
+    },
+    "number": {
+      "current_limit": {
+        "default": "mdi:current-ac"
+      }
+    },
+    "switch": {
+      "charging": {
+        "default": "mdi:ev-station",
+        "state": {
+          "on": "mdi:battery-charging",
+          "off": "mdi:ev-station"
+        }
+      },
+      "auto_start": {
+        "default": "mdi:ev-plug-type2"
+      },
+      "resume_after_power_loss": {
+        "default": "mdi:restart"
+      },
+      "plug_and_charge": {
+        "default": "mdi:flash-auto"
+      },
+      "schedule": {
+        "default": "mdi:calendar-clock"
+      },
+      "schedule_stop_at_end": {
+        "default": "mdi:timer-stop-outline"
+      }
+    },
+    "button": {
+      "refresh": {
+        "default": "mdi:refresh"
+      },
+      "force_stop": {
+        "default": "mdi:stop-circle-outline"
+      }
+    },
+    "time": {
+      "schedule_start": {
+        "default": "mdi:clock-start"
+      },
+      "schedule_end": {
+        "default": "mdi:clock-end"
+      }
+    },
+    "select": {
+      "schedule_days": {
+        "default": "mdi:calendar-week"
+      }
+    }
+  }
+}
