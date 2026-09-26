@@ -207,8 +207,10 @@ class Charger:
         # even at 0 Wh (a short charge stays under the 10 Wh meter step).
         self._tx_charged = False
         # Reserved / Unavailable / Faulted say nothing about the cable: the
-        # cable sensor keeps its last known state through them.
-        self._cable = False
+        # cable sensor keeps its last known state through them. Unknown until
+        # the first status: a False here showed "unplugged" for a few seconds
+        # at every start of Home Assistant (blind test, 26.09.2026).
+        self._cable: bool | None = None
         # The number the charger is actually charging under, from its
         # MeterValues. It is there even in a charge the charger started by
         # itself (partner's bench, 25.09.2026: 20 and 22 while HA had no open
@@ -227,7 +229,7 @@ class Charger:
         return self.status == "Charging" and self.tx_id is None and not self._stop_pending_status
 
     @property
-    def cable_connected(self) -> bool:
+    def cable_connected(self) -> bool | None:
         return self._cable
 
     @property
