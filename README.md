@@ -1,5 +1,7 @@
 # GNLT EV Charger for Home Assistant
 
+🇵🇱 [Instrukcja po polsku](README.pl.md)
+
 Local integration for GNLT EV chargers (portable and wall-mounted). The charger talks to Home Assistant
 directly over OCPP 1.6J in your home network — no cloud, no external servers, no internet needed.
 
@@ -10,7 +12,7 @@ directly over OCPP 1.6J in your home network — no cloud, no external servers, 
 - Built-in charging schedule, electricity price (single or two-zone tariff), cost of the charge, day and month totals
 - Warnings: the car did not take the charge, charging started by the charger itself, connector out of service
 - Setup over Bluetooth (Wi-Fi and server address are written to the charger) or manually by serial number
-- Languages: English, Polski, Русский
+- Languages: English, Polski
 
 ## Requirements
 
