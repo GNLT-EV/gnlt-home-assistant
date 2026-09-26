@@ -86,6 +86,7 @@
       "host_empty": "Wprowadź adres Home Assistanta.",
       "port_busy": "Ten port jest zajęty przez inny program. Wybierz inny.",
       "serial_invalid": "Numer seryjny składa się z 12 cyfr.",
+      "preset_required": "Wybierz wersję ładowarki.",
       "ble_not_found": "Ładowarka jest poza zasięgiem Bluetooth. Podejdź bliżej lub dodaj w pobliżu proxy Bluetooth ESPHome.",
       "ble_connect_failed": "Nie udało się połączyć z ładowarką przez Bluetooth. Sprawdź, czy OCPP jest na niej wyłączone, i spróbuj ponownie.",
       "ble_not_charger": "To urządzenie nie odpowiada jak ładowarka GNLT.",
@@ -344,7 +345,7 @@
       "message": "To ładowanie zostało rozpoczęte przez samą ładowarkę i nie można go zatrzymać zwykłym poleceniem. Użyj przycisku „Przerwij ładowanie” lub odłącz kabel."
     },
     "nothing_to_interrupt": {
-      "message": "Nie ma czego przerwać: ładowarka nie ładuje teraz samodzielnie. Aby zatrzymać zwykłe ładowanie, użyj przełącznika „Ładowanie”."
+      "message": "Nie ma czego przerwać: ładowarka nie ładuje teraz samodzielnie. Zwykłe ładowanie zatrzymasz głównym przełącznikiem ładowania."
     },
     "not_supported": {
       "message": "Ta ładowarka nie obsługuje tego ustawienia przez OCPP."

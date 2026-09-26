@@ -94,6 +94,15 @@ WAIT_CONNECT_S = 600
 PRESET_KEYS = [preset_key(ph, kw) for ph, kw, _a in AC_PRESETS]
 
 
+def _preset_key(known: str | None) -> vol.Marker:
+    """The charger version must be chosen by the person unless the charger told
+    it itself: a preselected "1 phase 7 kW - 32 A" let a buyer who just clicked
+    through get a 32 A slider on a 16 A unit (blind test, 25.09.2026).
+    Optional on purpose: for a required field with no default the frontend
+    preselects the first option itself; the step checks the choice instead."""
+    return vol.Required(CONF_PRESET, default=known) if known else vol.Optional(CONF_PRESET)
+
+
 def _preset_selector() -> SelectSelector:
     return SelectSelector(
         SelectSelectorConfig(options=PRESET_KEYS, translation_key="preset", mode=SelectSelectorMode.LIST)
@@ -287,7 +296,10 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         )
 
     async def async_step_passport(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
+        errors: dict[str, str] = {}
+        if user_input is not None and not user_input.get(CONF_PRESET):
+            errors[CONF_PRESET] = "preset_required"
+        elif user_input is not None:
             self._preset = user_input[CONF_PRESET]
             existing = self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, self._identity or "")
             if existing is not None:
@@ -303,8 +315,9 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         return self.async_show_form(
             step_id="passport",
             data_schema=vol.Schema(
-                {vol.Required(CONF_PRESET, default=self._preset or DEFAULT_PRESET): _preset_selector()}
+                {_preset_key(self._preset): _preset_selector()}
             ),
+            errors=errors,
             description_placeholders={"serial": self._identity or ""},
         )
 
@@ -362,6 +375,8 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
             identity = user_input[CONF_IDENTITY].strip()
             if not identity.isdigit() or len(identity) != 12:
                 errors[CONF_IDENTITY] = "serial_invalid"
+            elif not user_input.get(CONF_PRESET):
+                errors[CONF_PRESET] = "preset_required"
             else:
                 await self.async_set_unique_id(identity)
                 self._abort_if_unique_id_configured()
@@ -376,13 +391,15 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
                     return await self.async_step_manual_address()
         schema: dict[Any, Any] = {
             vol.Required(CONF_IDENTITY): TextSelector(TextSelectorConfig(type=TextSelectorType.TEXT)),
-            vol.Required(CONF_PRESET, default=DEFAULT_PRESET): _preset_selector(),
+            _preset_key(None): _preset_selector(),
         }
         if running_port is None:
             schema[vol.Required(CONF_PORT, default=DEFAULT_PORT)] = NumberSelector(
                 NumberSelectorConfig(min=1024, max=65535, mode=NumberSelectorMode.BOX)
             )
-        return self.async_show_form(step_id="manual", data_schema=vol.Schema(schema), errors=errors)
+        # Keep what the person typed when the form comes back with an error.
+        data_schema = self.add_suggested_values_to_schema(vol.Schema(schema), user_input or {})
+        return self.async_show_form(step_id="manual", data_schema=data_schema, errors=errors)
 
     async def async_step_manual_address(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
@@ -405,12 +422,16 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         return await self.async_step_discovery_confirm()
 
     async def async_step_discovery_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
-        if user_input is not None:
+        errors: dict[str, str] = {}
+        if user_input is not None and user_input.get(CONF_PRESET):
             self._preset = user_input[CONF_PRESET]
             return self._create()
+        if user_input is not None:
+            errors[CONF_PRESET] = "preset_required"
         return self.async_show_form(
             step_id="discovery_confirm",
-            data_schema=vol.Schema({vol.Required(CONF_PRESET, default=DEFAULT_PRESET): _preset_selector()}),
+            data_schema=vol.Schema({_preset_key(None): _preset_selector()}),
+            errors=errors,
             description_placeholders={"serial": self._identity or ""},
         )
 

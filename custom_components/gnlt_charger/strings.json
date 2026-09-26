@@ -86,6 +86,7 @@
       "host_empty": "Enter the address of Home Assistant.",
       "port_busy": "This port is taken by another program. Choose another one.",
       "serial_invalid": "The serial number consists of 12 digits.",
+      "preset_required": "Choose the charger version.",
       "ble_not_found": "The charger is out of Bluetooth range. Move closer or add an ESPHome Bluetooth proxy near it.",
       "ble_connect_failed": "Could not connect to the charger over Bluetooth. Check that OCPP is switched off on it and try again.",
       "ble_not_charger": "This device does not answer like a GNLT charger.",
@@ -344,7 +345,7 @@
       "message": "This charge was started by the charger itself and cannot be stopped with the usual command. Use the \"Interrupt charging\" button or unplug the cable."
     },
     "nothing_to_interrupt": {
-      "message": "Nothing to interrupt: the charger is not charging by itself right now. To stop a normal charge, use the \"Charging\" switch."
+      "message": "Nothing to interrupt: the charger is not charging by itself right now. A normal charge is stopped with the main charging switch."
     },
     "not_supported": {
       "message": "This charger does not support this setting over OCPP."

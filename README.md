@@ -52,8 +52,9 @@ Change the address on the charger in this order: OCPP off → enter the address 
 
 - A charger connects to one server only: either the GNLT app or Home Assistant.
 - After a network loss the charger is shown as connected for about two more minutes — this is intended.
-- If the car did not take the charge (usually a car that has gone to sleep), unplug the cable from the car and plug it
-  in again.
+- If the car did not take the charge (usually a car that has gone to sleep), the charge may start by itself when the
+  car wakes up. If you do not want that, unplug the cable.
+- Some switches may be inactive (grey) — these features depend on the charger's firmware version.
 
 ## Support
 

@@ -12,13 +12,13 @@ from __future__ import annotations
 
 import logging
 from dataclasses import dataclass, field
-from datetime import timedelta
 from typing import Any
 
 from homeassistant.config_entries import SOURCE_INTEGRATION_DISCOVERY, ConfigEntry
 from homeassistant.core import HomeAssistant, callback
 from homeassistant.exceptions import ConfigEntryNotReady
-from homeassistant.helpers.event import async_track_time_interval
+from homeassistant.helpers import device_registry as dr
+from homeassistant.helpers.event import async_track_time_change
 from homeassistant.helpers.storage import Store
 
 from . import notifications
@@ -51,13 +51,12 @@ from .const import (
     STORAGE_KEY,
     STORAGE_VERSION,
 )
-from .logic import Schedule, Tariff
+from .logic import Schedule, Tariff, model_name
 from .protocol import preset_max_current, preset_phases
 from .server import OcppServer
 
 _LOGGER = logging.getLogger(__name__)
 
-SCHEDULE_TICK = timedelta(seconds=30)
 
 type GnltConfigEntry = ConfigEntry[Charger]
 
@@ -193,6 +192,7 @@ async def async_setup_entry(hass: HomeAssistant, entry: GnltConfigEntry) -> bool
     await hass.config_entries.async_forward_entry_setups(entry, PLATFORMS)
     entry.async_on_unload(entry.add_update_listener(_options_updated))
     entry.async_on_unload(notifications.watch(hass, charger, entry.title))
+    entry.async_on_unload(charger.add_listener(_device_info_updater(hass, entry, charger)))
 
     async def _tick(_now: Any) -> None:
         # Schedule, and the day/month counters rolling over at local midnight
@@ -200,8 +200,33 @@ async def async_setup_entry(hass: HomeAssistant, entry: GnltConfigEntry) -> bool
         await charger.schedule_tick()
         charger.roll_totals()
 
-    entry.async_on_unload(async_track_time_interval(hass, _tick, SCHEDULE_TICK))
+    # At second 0 of every minute: the schedule is set in minutes, so the charge
+    # starts and stops within a second of the window's edge (every 30 s from
+    # Home Assistant's start it came up to 30 s late - blind test, 25.09.2026).
+    entry.async_on_unload(async_track_time_change(hass, _tick, second=0))
     return True
+
+
+def _device_info_updater(hass: HomeAssistant, entry: ConfigEntry, charger: Charger) -> Any:
+    """Keep firmware and model of the device up to date. The device is created
+    with whatever is known at setup; on a new install the charger has not said
+    hello yet, so the firmware stayed empty until a reload (blind test,
+    25.09.2026). Written only when it changes."""
+
+    @callback
+    def update() -> None:
+        if not charger.firmware:
+            return
+        registry = dr.async_get(hass)
+        devices = dr.async_entries_for_config_entry(registry, entry.entry_id)
+        if not devices:
+            return
+        device = devices[0]
+        model = model_name(charger.identity, charger.firmware, charger.country) or charger.model
+        if device.sw_version != charger.firmware or (model and device.model != model):
+            registry.async_update_device(device.id, sw_version=charger.firmware, model=model or device.model)
+
+    return update
 
 
 async def _options_updated(hass: HomeAssistant, entry: GnltConfigEntry) -> None:

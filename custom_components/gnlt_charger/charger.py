@@ -64,10 +64,25 @@ PING_INTERVAL_S = 45
 # idle charger sends nothing but a heartbeat.
 DEAD_AFTER_S = 135
 HEARTBEAT_INTERVAL_S = 300
-CALL_TIMEOUT_S = 30
+# Answers come in ~0.1 s, the slowest seen 1.9 s (26.09.2026).
+CALL_TIMEOUT_S = 10
+# Commands that are safe to send twice: a lost one is repeated once. Not
+# RemoteStartTransaction / Reset (a double start or reboot) and not
+# RemoteStopTransaction (a stop that worked but whose answer was lost would be
+# refused the second time, and "Interrupt charging" would then escalate).
+RETRY_ACTIONS = frozenset(
+    {"GetConfiguration", "TriggerMessage", "ChangeConfiguration", "ChangeAvailability"}
+)
 # Without a pause between ChangeConfiguration and RemoteStart the charger
 # loses the second command (live case 26.07.2026).
 COMMAND_GAP_S = 2
+# The charger drops a frame that reaches it too soon after the previous one -
+# worst of all right after a message of its own: measured on the partner's bench
+# (26.09.2026, 15 tries per gap) a command right after the charger's own message
+# was answered 0/15 at 0 s, 10/15 at 0.1 s, 14/15 at 0.2-0.5 s, 15/15 from 0.75 s.
+# Every frame WE start (commands, our ping) waits this long after the last frame
+# on the line in either direction. Twice the measured threshold.
+WIRE_GAP_S = 1.5
 AUTO_START_COOLDOWN_S = 180
 # The charger remembers its transaction through a reboot and accepts a stop by
 # a number we already closed - but not for ever.
@@ -174,8 +189,8 @@ class Charger:
 
         self._pending: dict[str, asyncio.Future[Any]] = {}
         self._call_lock = asyncio.Lock()
-        # When the charger last answered one of our commands (monotonic clock).
-        self._last_answer_mono = 0.0
+        # Last frame on the line in either direction (monotonic clock) - see WIRE_GAP_S.
+        self._last_wire_mono = 0.0
         self._tasks: set[asyncio.Task[Any]] = set()
         self._last_auto_start = 0.0
         # A start the car did not take: the connector stayed in Finishing.
@@ -194,9 +209,10 @@ class Charger:
         # Reserved / Unavailable / Faulted say nothing about the cable: the
         # cable sensor keeps its last known state through them.
         self._cable = False
-        # The number the charger is charging under, from its MeterValues. It is
-        # there even in a charge the charger started by itself (partner's bench,
-        # 25.09.2026: 20 and 22 while HA had no open session).
+        # The number the charger is actually charging under, from its
+        # MeterValues. It is there even in a charge the charger started by
+        # itself (partner's bench, 25.09.2026: 20 and 22 while HA had no open
+        # session) - the best number for "Interrupt charging".
         self.station_tx_id: int | None = None
 
     # --- plumbing -------------------------------------------------------------
@@ -313,6 +329,7 @@ class Charger:
                     await self._on_text(msg.data)
                 elif msg.type == WSMsgType.PING:
                     await ws.pong(msg.data)
+                    self._last_wire_mono = time.monotonic()
                 elif msg.type in (WSMsgType.CLOSE, WSMsgType.ERROR):
                     break
         finally:
@@ -323,6 +340,7 @@ class Charger:
 
     def _touch(self) -> None:
         self._last_rx_mono = time.monotonic()
+        self._last_wire_mono = self._last_rx_mono
         self.last_seen = _now()
 
     def _on_disconnect(self) -> None:
@@ -348,7 +366,13 @@ class Charger:
                     await ws.close(code=1001, message=b"silent")
                     return
                 try:
-                    await ws.ping()
+                    # Our ping goes through the same gate as commands: a
+                    # command sent in the same millisecond as the ping was lost
+                    # 4 of 4 (partner's bench, 26.09.2026).
+                    async with self._call_lock:
+                        await self._wait_quiet()
+                        await ws.ping()
+                        self._last_wire_mono = time.monotonic()
                 except ConnectionError:
                     return
                 await self._poll_meter_if_stale()
@@ -381,6 +405,7 @@ class Charger:
         if ws is None or ws.closed:
             raise ChargerError("not_connected")
         await ws.send_str(json.dumps(frame, separators=(",", ":")))
+        self._last_wire_mono = time.monotonic()
 
     async def _on_call(self, msg_id: str, action: str, payload: dict[str, Any]) -> None:
         handler = getattr(self, f"_on_{action}", None)
@@ -674,7 +699,7 @@ class Charger:
         return self.settings.schedule.next_start(self._local(_now()))
 
     async def schedule_tick(self, now: datetime | None = None) -> None:
-        """Called every 30 seconds. Starts in an open window, stops when it closes.
+        """Called at the start of every minute. Starts in an open window, stops when it closes.
 
         The stop is taken on the EDGE - the window was open at the previous tick
         and is closed now - not on "the minute equals the end": a tick is not
@@ -695,13 +720,13 @@ class Charger:
                 _LOGGER.info("%s: stop at window end failed: %s", self.identity, err)
             return
         if is_open and was_open is False and not charging and self.status == "Finishing" and self.cable_connected:
-            # The window has just opened and the cable stayed in the car after an
-            # earlier charge. plugged_idle() below refuses this Finishing (it is
-            # meant for a cable plugged in), so the schedule never started while
-            # the cable stayed in for days (partner's bench, 25.09.2026, 19:48).
-            # A manual start from here worked 5 of 5 that day with the car awake;
-            # a sleeping car (20:11) took no current - that start is caught by
-            # _watch_start.
+            # The window has just opened and the cable stayed in the car after
+            # an earlier charge. plugged_idle() refuses this Finishing (it would
+            # wake a full car every three minutes), so the schedule never
+            # started while the cable stayed in for days (partner's bench,
+            # 25.09.2026, 19:48). Once, at the opening only - the same rule as
+            # the platform (scheduler.ts::isStartMoment). A car that sleeps and
+            # takes nothing is caught by _watch_start.
             await self._auto_start()
             return
         if is_open and not charging and plugged_idle(self.status, self.previous_status):
@@ -716,8 +741,9 @@ class Charger:
         for mv in p.get("meterValue") or []:
             if isinstance(mv, dict):
                 self._apply_meter(mv.get("sampledValue"), station_timestamp(mv.get("timestamp"), _now()))
-        if isinstance(p.get("transactionId"), int):
-            self.station_tx_id = p["transactionId"]
+        number = p.get("transactionId")
+        if isinstance(number, int) and not isinstance(number, bool):
+            self.station_tx_id = number
         self.last_meter_at = _now()
         self._persist()
         return {}, None
@@ -741,19 +767,31 @@ class Charger:
 
     # --- outgoing ---------------------------------------------------------------
 
+    async def _wait_quiet(self) -> None:
+        """The one gate for every frame we start: WIRE_GAP_S after the last frame."""
+        while (wait := WIRE_GAP_S - (time.monotonic() - self._last_wire_mono)) > 0:
+            await asyncio.sleep(wait)
+
     async def call(self, action: str, payload: dict[str, Any], timeout: float = CALL_TIMEOUT_S) -> dict[str, Any]:
-        """Send a command and wait for the answer. One at a time: OCPP 1.6 does
-        not allow a second request while the first is unanswered."""
+        """Send a command and wait for the answer; a lost safe-to-repeat command
+        (RETRY_ACTIONS) is sent once more."""
+        attempts = 2 if action in RETRY_ACTIONS else 1
+        for attempt in range(attempts):
+            try:
+                return await self._call_once(action, payload, timeout)
+            except ChargerError as err:
+                if err.code != "no_answer" or attempt + 1 == attempts:
+                    raise
+                _LOGGER.warning("%s: no answer to %s, sending it again", self.identity, action)
+        raise ChargerError("no_answer", action)
+
+    async def _call_once(self, action: str, payload: dict[str, Any], timeout: float) -> dict[str, Any]:
+        """One at a time: OCPP 1.6 does not allow a second request while the first
+        is unanswered."""
         async with self._call_lock:
             if not self.connected:
                 raise ChargerError("not_connected")
-            # The charger drops a command that comes right after the answer to
-            # the previous one (partner's bench: "Refresh readings" 3 of 3,
-            # 24.09.2026; paired GetConfiguration after settings changes,
-            # 25.09.2026). One rule for every command: 2 s after the last answer.
-            wait = COMMAND_GAP_S - (time.monotonic() - self._last_answer_mono)
-            if wait > 0:
-                await asyncio.sleep(wait)
+            await self._wait_quiet()
             msg_id = uuid.uuid4().hex[:20]
             fut: asyncio.Future[Any] = asyncio.get_running_loop().create_future()
             self._pending[msg_id] = fut
@@ -764,7 +802,6 @@ class Charger:
                 raise ChargerError("no_answer", action) from err
             finally:
                 self._pending.pop(msg_id, None)
-                self._last_answer_mono = time.monotonic()
 
     async def _setup_after_boot(self) -> None:
         """Read the configuration and bring the charger to the owner's settings."""
@@ -788,6 +825,15 @@ class Charger:
                 await self._change_config("ChargeRate", str(self.desired_current_a))
         except ChargerError as err:
             _LOGGER.warning("%s: setup after boot incomplete: %s", self.identity, err)
+        if self.last_meter_at is None:
+            # The charger sends readings by itself only while charging: after a
+            # Home Assistant restart voltage, current and temperature stayed
+            # "unknown" until "Refresh readings" was pressed (blind tests,
+            # 25-26.09.2026). Ask once.
+            try:
+                await self.call("TriggerMessage", {"requestedMessage": "MeterValues", "connectorId": 1}, timeout=15)
+            except ChargerError as err:
+                _LOGGER.info("%s: first readings not requested: %s", self.identity, err)
         self._notify()
 
     async def _change_config(self, key: str, value: str) -> None:
@@ -875,12 +921,14 @@ class Charger:
         if not self.connected:
             raise ChargerError("not_connected")
         if not self.charging_without_session:
-            # The button is always available (see ForceStopButton): a press
-            # with no charge of the charger's own must not send anything.
+            # The button is always available (see ForceStopButton): a press with
+            # no charge of the charger's own sends nothing.
             raise ChargerError("nothing_to_interrupt")
-        # The polite stop first, by every number the charger may be using: on the
-        # partner's bench (25.09.2026) all three charges the charger started by
-        # itself stopped this way - twice even with a number other than its own.
+        # The polite stop first, by every number the charger may be using. On
+        # the partner's bench (25.09.2026) every charge the charger started by
+        # itself stopped this way, twice by a number other than its own. A
+        # rejected number costs nothing; the connector is taken out of service
+        # only if all of them are refused.
         for tx in dict.fromkeys(n for n in (self.station_tx_id, self.tx_id, self.last_tx_id) if n is not None):
             try:
                 res = await self.call("RemoteStopTransaction", {"transactionId": tx})
