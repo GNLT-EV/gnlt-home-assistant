@@ -27,6 +27,7 @@ from collections.abc import Callable
 from datetime import datetime
 
 from bleak.backends.characteristic import BleakGATTCharacteristic
+from bleak.exc import BleakError
 from bleak_retry_connector import BleakClientWithServiceCache, establish_connection
 from homeassistant.components import bluetooth
 from homeassistant.core import HomeAssistant
@@ -145,10 +146,15 @@ class ChargerLink:
     async def _write_frame(self, frame: bytes) -> None:
         if self._client is None or self._write is None:
             raise BleError("ble_connect_failed")
-        for i, chunk in enumerate(chunk_frame(frame)):
-            if i:
-                await asyncio.sleep(CHUNK_DELAY_S)
-            await self._client.write_gatt_char(self._write, chunk, response=self._with_response)
+        try:
+            for i, chunk in enumerate(chunk_frame(frame)):
+                if i:
+                    await asyncio.sleep(CHUNK_DELAY_S)
+                await self._client.write_gatt_char(self._write, chunk, response=self._with_response)
+        except BleakError as err:
+            # The link dropped mid-write, e.g. the charger switched Bluetooth
+            # off on its way to Wi-Fi.
+            raise BleError("ble_connect_failed", str(err)) from err
 
     async def send(self, frame: bytes, cmd_id: int, timeout: float = REPLY_TIMEOUT_S) -> Reply:
         fut: asyncio.Future[Reply] = asyncio.get_running_loop().create_future()
@@ -182,7 +188,7 @@ class ChargerLink:
         if self._client is not None and self._client.is_connected:
             try:
                 await self.send(frame_close_session(), Cmd.CLOSE, timeout=2)
-            except BleError:
+            except Exception:  # noqa: BLE001 - goodbye is best effort, never masks the result
                 pass
         await self.disconnect()
 

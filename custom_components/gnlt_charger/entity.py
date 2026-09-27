@@ -56,3 +56,8 @@ async def run_command(awaitable: Awaitable[None]) -> None:
             translation_key=err.code,
             translation_placeholders={"detail": err.detail},
         ) from err
+    except (ConnectionError, OSError) as err:
+        # The link to the charger broke while sending.
+        raise HomeAssistantError(
+            translation_domain=DOMAIN, translation_key="not_connected", translation_placeholders={"detail": ""}
+        ) from err

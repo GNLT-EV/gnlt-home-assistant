@@ -11,18 +11,17 @@
       },
       "bluetooth_confirm": {
         "title": "GNLT charger nearby",
-        "description": "Home Assistant sees the charger {name} over Bluetooth. Set it up: Home Assistant will write your Wi-Fi network and its own address into the charger."
+        "description": "Do you want to set up {name}?"
       },
       "pick_device": {
         "title": "Choose the charger",
-        "description": "The charger is visible over Bluetooth only while OCPP is switched off on it: on the charger press the OK button, choose Wi-Fi and switch OCPP off. Keep the Home Assistant Bluetooth adapter (or an ESPHome Bluetooth proxy) within a few metres of the charger.",
         "data": {
           "address": "Charger"
         }
       },
       "wifi": {
         "title": "Wi-Fi for the charger",
-        "description": "The charger {name} will join this Wi-Fi network and reach Home Assistant through it. The network must be 2.4 GHz with WPA2 security. The charger does not support WPA3 or mixed modes (WPA/WPA2, WPA2/WPA3). The name and password may contain Latin letters, digits and symbols only. The password is sent to the charger and is not stored in Home Assistant.",
+        "description": "Wi-Fi network for charger {name}: 2.4 GHz, WPA2 security. 5 GHz networks, WPA3 and mixed modes (WPA/WPA2, WPA2/WPA3) will not work. The name and password may contain only Latin letters without accents, digits and symbols.",
         "data": {
           "ssid": "Network name",
           "password": "Network password",
@@ -31,25 +30,25 @@
           "plug_and_charge_off": "Start charging by command, not by plugging in"
         },
         "data_description": {
-          "host": "The charger connects to this address. Usually detected automatically — check that it is the address of Home Assistant in your home network. If Home Assistant runs in Docker, this may show an internal 172.x.x.x address — enter the address of the computer in your home network instead.",
-          "port": "The same port for all chargers. Do not open it to the internet.",
-          "plug_and_charge_off": "Recommended. Then every charge is visible and controllable in Home Assistant. To start charging automatically when the cable is plugged in, use the \"Start when the cable is connected\" switch."
+          "host": "The IP address of the computer or server running Home Assistant in your home network, for example 192.168.1.10. If a different address is shown here, delete it and enter yours.",
+          "port": "Leave 9000.",
+          "plug_and_charge_off": "Recommended. Charging starts by a command from Home Assistant or by the schedule, not as soon as the cable is plugged in."
         }
       },
       "passport": {
         "title": "Charger version",
-        "description": "Charger {serial} is set up. Check its version: it limits the current slider. If the charger reported it itself, it is already selected.",
+        "description": "Charger {serial} received the Wi-Fi settings. Check that your charger version is selected — the number of phases and the power, as on the charger's rating plate. If a different one is selected, select yours.",
         "data": {
           "preset": "Charger version"
         }
       },
       "enable_ocpp": {
-        "title": "Last step — on the charger",
-        "description": "1. Wait until the Wi-Fi icon appears on the charger screen — this means the network name and password were accepted.\n2. Then on the charger press the OK button, choose Wi-Fi and switch OCPP on.\n\nThis step is done by hand, on the charger itself. Press \"Submit\" when OCPP is on — Home Assistant will wait for charger {serial} to connect."
+        "title": "Switch OCPP on at the charger",
+        "description": "1. Wait for the Wi-Fi icon on the charger screen.\n2. On the charger press OK, choose Wi-Fi, switch OCPP on and leave the menu.\n3. Click Submit.\n\nIf the Wi-Fi icon does not appear, close this window, check the network name and password and start again."
       },
       "not_connected": {
         "title": "The charger has not connected yet",
-        "description": "Charger {serial} has not come to Home Assistant within 10 minutes. Check:\n• the Wi-Fi icon is on the charger screen (if not — the name or password is wrong, or the network is 5 GHz only);\n• OCPP is switched on (OK button → Wi-Fi);\n• Home Assistant is reachable at {url} from your network.\n\nYou can add the charger anyway — it will appear as soon as it connects."
+        "description": "Charger {serial} has not connected within 10 minutes. Check:\n• the Wi-Fi icon is on the charger screen;\n• OCPP is switched on at the charger;\n• the charger (OK → Wi-Fi) shows the address {url}.\n\nClick Submit to add the charger anyway. It connects as soon as the connection works."
       },
       "manual": {
         "title": "Charger already on the network",
@@ -59,12 +58,13 @@
           "port": "Port for chargers"
         },
         "data_description": {
-          "identity": "12 digits, printed on the charger."
+          "identity": "12 digits, printed on the charger.",
+          "port": "Leave 9000."
         }
       },
       "manual_address": {
-        "title": "Enter the address in the charger",
-        "description": "In the OCPP settings of the charger enter:\n\n- server address: `{url}`\n- ChargeID: `{serial}`\n\nThe address starts with **ws://**, not wss://. Then switch OCPP on on the charger (OK button → Wi-Fi). If Home Assistant runs in Docker without host networking, this address may be the container's own - then enter the address of the computer in your home network (or set it in Settings → System → Network → Local network)."
+        "title": "Server address for the charger",
+        "description": "Check that the address below contains the IP address of your Home Assistant. If it shows a different address, for example ws://172.17.0.2, close this window, open Settings → System → Network, in Local network switch Automatic off, enter http://computer-IP-address:8123, click Save and start again.\n\nIn the EV-Charger app, in the OCPP settings, enter:\n\n- server address: `{url}`\n- ChargeID: `{serial}`\n\nThen on the charger press OK, choose Wi-Fi — the address you entered is shown there — switch OCPP on and leave the menu. Click Submit."
       },
       "discovery_confirm": {
         "title": "Charger {serial} connected",
@@ -75,34 +75,35 @@
       }
     },
     "progress": {
-      "provision": "Writing the settings into the charger over Bluetooth. Stay close to the charger, it takes about half a minute.",
-      "wait_connect": "Waiting for the charger to connect to Home Assistant (up to 10 minutes)."
+      "provision": "Writing the settings to the charger — about half a minute.",
+      "wait_connect": "Waiting for the charger to connect — up to 10 minutes."
     },
     "error": {
-      "no_devices": "No charger found over Bluetooth. Switch OCPP off on the charger (OK button → Wi-Fi). If OCPP is already off, another device may be connected to the charger, for example the app on a phone: close it and try again.",
+      "no_devices": "Charger not found. Switch OCPP off on the charger, close the app on your phone, move the Bluetooth adapter closer to the charger and click Submit.",
       "ssid_ascii": "The charger accepts only Latin letters, digits and symbols in the network name. Rename the network in the router settings.",
-      "ssid_long": "Network name is longer than 32 characters.",
-      "password_ascii": "The charger accepts only Latin letters, digits and symbols in the password.",
-      "password_long": "Password is longer than 32 characters.",
-      "host_ascii": "The address may contain Latin letters, digits and symbols only.",
-      "host_long": "The address is too long for the charger (128 characters at most).",
+      "ssid_long": "The network name is longer than 32 characters. Rename the network in the router settings.",
+      "password_ascii": "The charger accepts only Latin letters, digits and symbols in the password. Change the password in the router settings.",
+      "password_long": "The password is longer than 32 characters. Change the password in the router settings.",
+      "host_ascii": "Enter an IP address, for example 192.168.1.10.",
+      "host_long": "The address is too long.",
       "host_empty": "Enter the address of Home Assistant.",
-      "port_busy": "This port is taken by another program. Choose another one.",
+      "port_busy": "This port is used by another program. Enter another one, for example 9001.",
       "serial_invalid": "The serial number consists of 12 digits.",
       "preset_required": "Choose the charger version.",
-      "ble_not_found": "The charger is out of Bluetooth range. Move closer or add an ESPHome Bluetooth proxy near it.",
-      "ble_connect_failed": "Could not connect to the charger over Bluetooth. Check that OCPP is switched off on it and try again.",
-      "ble_not_charger": "This device does not answer like a GNLT charger.",
-      "ble_no_answer": "The charger stopped answering. Move closer. If another device is connected to the charger, for example the app on a phone, close it and try again.",
-      "ble_rejected": "The charger did not accept the settings. Check the network name and password.",
-      "ble_failed": "Setup over Bluetooth failed. Try again.",
-      "firmware_too_old": "This charger version cannot work with Home Assistant over OCPP. Contact the seller."
+      "ble_not_found": "Charger not found. Switch OCPP off on the charger, close the app on your phone, move the Bluetooth adapter closer to the charger and click Submit.",
+      "ble_connect_failed": "Could not connect to the charger. Switch OCPP off on the charger, close the app on your phone and click Submit.",
+      "ble_no_answer": "The charger does not answer. Close the app on your phone and click Submit.",
+      "ble_rejected": "The charger did not accept the settings. Click Submit again.",
+      "ble_failed": "Setup over Bluetooth failed. Move the Bluetooth adapter closer to the charger and click Submit."
     },
     "abort": {
       "already_configured": "This charger is already added.",
-      "already_in_progress": "This charger is already being set up.",
-      "not_supported": "This device is not a GNLT charger.",
-      "reprovisioned": "The charger received the new network settings. Switch OCPP on on the charger (OK button → Wi-Fi) — it will reconnect to Home Assistant."
+      "already_in_progress": "This charger is already being set up in another window. Close this window. If there is a card of this charger in Discovered, continue from it.",
+      "not_supported": "This is not a GNLT charger.",
+      "reprovisioned": "The charger received the new settings. Wait for the Wi-Fi icon on the charger screen, press OK, choose Wi-Fi, switch OCPP on and leave the menu.",
+      "ble_not_charger": "This is not a GNLT charger.",
+      "firmware_too_old": "This charger version cannot work with Home Assistant over OCPP. Contact the seller.",
+      "continue_setup": "Continuing the setup."
     }
   },
   "options": {
@@ -121,8 +122,8 @@
         },
         "data_description": {
           "auto_start": "Home Assistant starts the charge itself when you plug the cable into the car. Cannot be combined with the schedule: turning one on turns the other off.",
-          "resume_after_power_loss": "If the power went out during a charge, Home Assistant continues it when the power returns — as long as the cable was not unplugged. Works on chargers version 2.8 and newer.",
-          "price": "Used to calculate the cost of every charge. Empty or 0 - cost is not calculated.",
+          "resume_after_power_loss": "If the power goes off during charging, Home Assistant resumes charging when the power comes back, if the cable was not unplugged. Works with charger firmware 2.8 and newer.",
+          "price": "Price per 1 kWh. 0 — the cost is not calculated.",
           "night_price": "For a two-zone tariff. 0 means a single tariff. Energy delivered at night is priced at this rate even if the charge started in the day."
         },
         "description": "Prices are per 1 kWh, in the currency of Home Assistant ({currency})."
@@ -338,10 +339,10 @@
       "message": "The charger did not answer in time. Try again."
     },
     "call_error": {
-      "message": "The charger could not process the command ({detail})."
+      "message": "The charger could not carry out the command."
     },
     "rejected": {
-      "message": "The charger did not accept the command ({detail})."
+      "message": "The charger did not accept the command."
     },
     "start_rejected": {
       "message": "The charger did not accept the start. If the cable has been in the car for a while, wake the car (for example, open the door) or unplug the cable, plug it in again and start."
@@ -353,13 +354,13 @@
       "message": "The charge is already running."
     },
     "unavailable": {
-      "message": "The charger is out of service now."
+      "message": "The charger cannot charge right now."
     },
     "no_session": {
       "message": "This charge was started by the charger itself and cannot be stopped with the usual command. Use the \"Interrupt charging\" button or unplug the cable."
     },
     "nothing_to_interrupt": {
-      "message": "Nothing to interrupt: the charger is not charging by itself right now. A normal charge is stopped with the main charging switch."
+      "message": "There is nothing to interrupt. A normal charge is stopped with the Charging switch."
     },
     "not_supported": {
       "message": "This charger does not support this setting over OCPP."

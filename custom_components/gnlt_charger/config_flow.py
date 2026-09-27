@@ -28,9 +28,13 @@ import voluptuous as vol
 from homeassistant.components.bluetooth import BluetoothServiceInfoBleak
 from homeassistant.components.network import async_get_source_ip
 from homeassistant.config_entries import (
+    SOURCE_IGNORE,
+    SOURCE_INTEGRATION_DISCOVERY,
+    SOURCE_USER,
     ConfigEntry,
     ConfigFlow,
     ConfigFlowResult,
+    FlowType,
     OptionsFlow,
 )
 from homeassistant.core import callback
@@ -49,7 +53,7 @@ from homeassistant.helpers.selector import (
 )
 from homeassistant.util import dt as dt_util
 
-from . import async_ensure_server, charger_for
+from . import async_ensure_server, async_offer_discovery, charger_for
 from .ble import BleError, discovered_chargers, looks_like_charger, provision
 from .const import (
     CONF_AUTO_START,
@@ -88,6 +92,7 @@ CONF_ADDRESS = "address"
 CONF_SSID = "ssid"
 CONF_PASSWORD = "password"
 CONF_HOST = "host"
+CONF_NAME = "name"
 CONF_PNC_OFF = "plug_and_charge_off"
 
 WAIT_CONNECT_S = 600
@@ -153,6 +158,16 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         self._task: asyncio.Task[Any] | None = None
         self._error: str | None = None
 
+    @callback
+    def async_remove(self) -> None:
+        """The wizard was closed. If its charger is already online, offer it in
+        "Discovered" - the discovery was held back while this wizard ran."""
+        if self.context.get("source") == SOURCE_INTEGRATION_DISCOVERY or self._identity is None:
+            return
+        charger = charger_for(self.hass, self._identity)
+        if charger is not None and charger.connected:
+            async_offer_discovery(self.hass, self._identity)
+
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
@@ -165,6 +180,11 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
     # --- start --------------------------------------------------------------------
 
     async def async_step_user(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        if user_input is not None and CONF_ADDRESS in user_input:
+            # Handed over from a Bluetooth discovery (see bluetooth_confirm).
+            self._address = user_input[CONF_ADDRESS]
+            self._ble_name = user_input.get(CONF_NAME) or self._address
+            return await self.async_step_wifi()
         return self.async_show_menu(step_id="user", menu_options=["pick_device", "manual"])
 
     async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> ConfigFlowResult:
@@ -180,7 +200,16 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_bluetooth_confirm(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         if user_input is not None:
-            return await self.async_step_wifi()
+            # Home Assistant closes a flow started by a Bluetooth discovery as
+            # soon as the device stops advertising - and the charger stops
+            # right after it gets the Wi-Fi settings. Go on in a regular flow,
+            # like improv_ble hands over to the next integration.
+            result = await self.hass.config_entries.flow.async_init(
+                DOMAIN,
+                context={"source": SOURCE_USER},
+                data={CONF_ADDRESS: self._address, CONF_NAME: self._ble_name},
+            )
+            return self.async_abort(reason="continue_setup", next_flow=(FlowType.CONFIG_FLOW, result["flow_id"]))
         self._set_confirm_only()
         return self.async_show_form(
             step_id="bluetooth_confirm", description_placeholders={"name": self._ble_name or ""}
@@ -240,6 +269,7 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
                     "ssid": ssid,
                     "password": password,
                     "server_url": url,
+                    "host": host,
                     "plug_and_charge_off": bool(user_input.get(CONF_PNC_OFF, True)),
                 }
                 self._error = None
@@ -248,11 +278,14 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
             errors["base"] = self._error
             self._error = None
 
-        default_host = (user_input or {}).get(CONF_HOST) or await _lan_address(self.hass)
+        # After a Bluetooth error the form comes back empty-handed: keep what
+        # the person typed (not the password).
+        previous = user_input or self._wifi
+        default_host = previous.get(CONF_HOST) or await _lan_address(self.hass)
         schema: dict[Any, Any] = {
             # Without autocomplete hints the browser fills in the login and
             # password it keeps for Home Assistant itself (stand, 27.09.2026).
-            vol.Required(CONF_SSID, default=(user_input or {}).get(CONF_SSID, "")): TextSelector(
+            vol.Required(CONF_SSID, default=previous.get(CONF_SSID, "")): TextSelector(
                 TextSelectorConfig(autocomplete="off")
             ),
             vol.Required(CONF_PASSWORD): TextSelector(
@@ -282,13 +315,24 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
             self._info, self._state = task.result()
         except BleError as err:
             _LOGGER.warning("Bluetooth setup failed: %s", err)
+            if err.code in BLE_DEAD_ENDS:
+                # Trying again gives the same answer: end the flow.
+                self._error = err.code
+                return self.async_show_progress_done(next_step_id="unsupported")
             self._error = err.code if err.code in BLE_ERRORS else "ble_failed"
+            return self.async_show_progress_done(next_step_id="wifi")
+        except Exception:
+            _LOGGER.exception("Bluetooth setup failed")
+            self._error = "ble_failed"
             return self.async_show_progress_done(next_step_id="wifi")
         self._identity = self._info.serial
         await self.async_set_unique_id(self._identity, raise_on_progress=False)
         if self._state is not None:
             self._preset = preset_from_station(self._state.max_current_a, self._state.phases)
         return self.async_show_progress_done(next_step_id="passport")
+
+    async def async_step_unsupported(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        return self.async_abort(reason=self._error or "not_supported")
 
     async def _provision(self) -> tuple[DeviceInfo, StationState | None]:
         assert self._address is not None
@@ -309,10 +353,17 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         elif user_input is not None:
             self._preset = user_input[CONF_PRESET]
             existing = self.hass.config_entries.async_entry_for_domain_unique_id(DOMAIN, self._identity or "")
-            if existing is not None:
+            if existing is not None and existing.source != SOURCE_IGNORE:
                 # The same charger set up again (new router, new password).
+                # The version is kept in options once changed there - update
+                # it there too, or the new choice would not take effect.
+                options = dict(existing.options)
+                if CONF_PRESET in options:
+                    options[CONF_PRESET] = self._preset
                 self.hass.config_entries.async_update_entry(
-                    existing, data={**existing.data, CONF_PORT: self._port, CONF_PRESET: self._preset}
+                    existing,
+                    data={**existing.data, CONF_PORT: self._port, CONF_PRESET: self._preset},
+                    options=options,
                 )
                 self.hass.config_entries.async_schedule_reload(existing.entry_id)
                 return self.async_abort(reason="reprovisioned")
@@ -364,6 +415,12 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
 
     def _create(self) -> ConfigFlowResult:
         assert self._identity is not None
+        # A Bluetooth discovery of the same charger is keyed by its address,
+        # not its serial number: close it, it is set up now.
+        if self._address is not None:
+            for flow in self._async_in_progress(include_uninitialized=True):
+                if flow["context"].get("unique_id") == self._address:
+                    self.hass.config_entries.flow.async_abort(flow["flow_id"])
         return self.async_create_entry(
             title=f"GNLT {self._identity}",
             data={
@@ -446,11 +503,10 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
 BLE_ERRORS = {
     "ble_not_found",
     "ble_connect_failed",
-    "ble_not_charger",
     "ble_no_answer",
     "ble_rejected",
-    "firmware_too_old",
 }
+BLE_DEAD_ENDS = {"ble_not_charger", "firmware_too_old"}
 
 
 class GnltOptionsFlow(OptionsFlow):

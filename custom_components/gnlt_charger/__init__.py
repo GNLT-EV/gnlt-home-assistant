@@ -67,7 +67,6 @@ class DomainData:
     stored: dict[str, Any]
     server: OcppServer | None = None
     chargers: dict[str, Charger] = field(default_factory=dict)
-    announced: set[str] = field(default_factory=set)
     entries: int = 0
 
 
@@ -133,20 +132,27 @@ def _charger_factory(hass: HomeAssistant, data: DomainData):
     return charger_for
 
 
+@callback
+def async_offer_discovery(hass: HomeAssistant, identity: str) -> None:
+    """A charger without an entry is online: offer it in "Discovered"."""
+    if any(e.unique_id == identity for e in hass.config_entries.async_entries(DOMAIN)):
+        return
+    if any(
+        f["context"].get("unique_id") == identity and f["context"].get("source") == SOURCE_INTEGRATION_DISCOVERY
+        for f in hass.config_entries.flow.async_progress_by_handler(DOMAIN)
+    ):
+        return
+    hass.async_create_task(
+        hass.config_entries.flow.async_init(
+            DOMAIN, context={"source": SOURCE_INTEGRATION_DISCOVERY}, data={CONF_IDENTITY: identity}
+        )
+    )
+
+
 def _announce_factory(hass: HomeAssistant, data: DomainData):
     @callback
     def on_connect(identity: str) -> None:
-        """A charger without an entry connected: offer it in "Discovered"."""
-        if identity in data.announced:
-            return
-        if any(e.unique_id == identity for e in hass.config_entries.async_entries(DOMAIN)):
-            return
-        data.announced.add(identity)
-        hass.async_create_task(
-            hass.config_entries.flow.async_init(
-                DOMAIN, context={"source": SOURCE_INTEGRATION_DISCOVERY}, data={CONF_IDENTITY: identity}
-            )
-        )
+        async_offer_discovery(hass, identity)
 
     return on_connect
 

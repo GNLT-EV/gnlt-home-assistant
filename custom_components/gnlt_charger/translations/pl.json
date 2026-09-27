@@ -11,18 +11,17 @@
       },
       "bluetooth_confirm": {
         "title": "W pobliżu jest ładowarka GNLT",
-        "description": "Home Assistant widzi ładowarkę {name} przez Bluetooth. Skonfiguruj ją: Home Assistant zapisze w ładowarce Twoją sieć Wi-Fi i swój adres."
+        "description": "Czy chcesz skonfigurować {name}?"
       },
       "pick_device": {
         "title": "Wybierz ładowarkę",
-        "description": "Ładowarka jest widoczna przez Bluetooth tylko wtedy, gdy OCPP jest na niej wyłączone: na ładowarce naciśnij przycisk OK, wybierz Wi-Fi i wyłącz OCPP. Adapter Bluetooth Home Assistanta (lub proxy Bluetooth ESPHome) powinien znajdować się nie dalej niż kilka metrów od ładowarki.",
         "data": {
           "address": "Ładowarka"
         }
       },
       "wifi": {
         "title": "Wi-Fi dla ładowarki",
-        "description": "Ładowarka {name} połączy się z tą siecią Wi-Fi, a przez nią z Home Assistantem. Sieć musi działać w paśmie 2,4 GHz z zabezpieczeniem WPA2. Ładowarka nie obsługuje WPA3 ani trybów mieszanych (WPA/WPA2, WPA2/WPA3). Nazwa i hasło mogą zawierać tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne. Hasło jest wysyłane do ładowarki i nie jest zapisywane w Home Assistant.",
+        "description": "Sieć Wi-Fi dla ładowarki {name}: 2,4 GHz, zabezpieczenie WPA2. Sieci 5 GHz, WPA3 i tryby mieszane (WPA/WPA2, WPA2/WPA3) nie zadziałają. Nazwa i hasło mogą zawierać tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne.",
         "data": {
           "ssid": "Nazwa sieci",
           "password": "Hasło sieci",
@@ -31,25 +30,25 @@
           "plug_and_charge_off": "Rozpoczynaj ładowanie na polecenie, a nie po podłączeniu kabla"
         },
         "data_description": {
-          "host": "Ładowarka będzie łączyć się z tym adresem. Zwykle jest wykrywany automatycznie — sprawdź, czy to adres Home Assistanta w Twojej sieci domowej. Jeśli Home Assistant działa w Dockerze, może się tu pojawić wewnętrzny adres 172.x.x.x — wpisz wtedy adres komputera w sieci domowej.",
-          "port": "Ten sam port dla wszystkich ładowarek. Nie udostępniaj go w internecie.",
-          "plug_and_charge_off": "Zalecane. Wtedy każde ładowanie jest widoczne w Home Assistant i można nim stamtąd sterować. Aby ładowanie zaczynało się automatycznie po podłączeniu kabla, użyj przełącznika „Start po podłączeniu kabla”."
+          "host": "Adres IP komputera lub serwera w Twojej sieci domowej, na którym działa Home Assistant, np. 192.168.1.10. Jeśli widzisz tu inny adres, usuń go i wpisz swój.",
+          "port": "Pozostaw 9000.",
+          "plug_and_charge_off": "Zalecane. Ładowanie rozpoczyna się na polecenie z Home Assistanta lub według harmonogramu, a nie od razu po podłączeniu kabla."
         }
       },
       "passport": {
         "title": "Wersja ładowarki",
-        "description": "Ładowarka {serial} została skonfigurowana. Sprawdź jej wersję: od niej zależy zakres suwaka prądu. Jeśli ładowarka sama ją zgłosiła, jest już wybrana.",
+        "description": "Ładowarka {serial} otrzymała ustawienia Wi-Fi. Sprawdź, czy wybrana jest wersja Twojej ładowarki — liczba faz i moc, jak na tabliczce znamionowej ładowarki. Jeśli wybrana jest inna, wybierz swoją.",
         "data": {
           "preset": "Wersja ładowarki"
         }
       },
       "enable_ocpp": {
-        "title": "Ostatni krok — na ładowarce",
-        "description": "1. Poczekaj, aż na ekranie ładowarki pojawi się ikona Wi-Fi — oznacza to, że nazwa sieci i hasło zostały przyjęte.\n2. Następnie na ładowarce naciśnij przycisk OK, wybierz Wi-Fi i włącz OCPP.\n\nTen krok wykonuje się ręcznie, na samej ładowarce. Naciśnij „Zatwierdź”, gdy OCPP będzie włączone — Home Assistant zaczeka, aż ładowarka {serial} się połączy."
+        "title": "Włącz OCPP na ładowarce",
+        "description": "1. Poczekaj, aż na ekranie ładowarki pojawi się ikona Wi-Fi.\n2. Na ładowarce naciśnij OK, wybierz Wi-Fi, włącz OCPP i wyjdź z menu.\n3. Kliknij „Zatwierdź”.\n\nJeśli ikona Wi-Fi się nie pojawi, zamknij to okno, sprawdź nazwę sieci i hasło i zacznij od nowa."
       },
       "not_connected": {
         "title": "Ładowarka jeszcze się nie połączyła",
-        "description": "Ładowarka {serial} nie połączyła się z Home Assistantem w ciągu 10 minut. Sprawdź:\n• czy na ekranie ładowarki jest ikona Wi-Fi (jeśli nie — nazwa lub hasło są błędne albo sieć działa tylko w paśmie 5 GHz);\n• czy OCPP jest włączone (przycisk OK → Wi-Fi);\n• czy Home Assistant jest dostępny pod adresem {url} z Twojej sieci.\n\nMożesz mimo to dodać ładowarkę — pojawi się, gdy tylko się połączy."
+        "description": "Ładowarka {serial} nie połączyła się w ciągu 10 minut. Sprawdź:\n• czy na ekranie ładowarki jest ikona Wi-Fi;\n• czy OCPP na ładowarce jest włączone;\n• czy ładowarka (OK → Wi-Fi) pokazuje adres {url}.\n\nKliknij „Zatwierdź”, aby mimo to dodać ładowarkę. Połączy się, gdy tylko połączenie zacznie działać."
       },
       "manual": {
         "title": "Ładowarka już w sieci",
@@ -59,12 +58,13 @@
           "port": "Port dla ładowarek"
         },
         "data_description": {
-          "identity": "12 cyfr nadrukowanych na ładowarce."
+          "identity": "12 cyfr nadrukowanych na ładowarce.",
+          "port": "Pozostaw 9000."
         }
       },
       "manual_address": {
-        "title": "Wprowadź adres w ładowarce",
-        "description": "W ustawieniach OCPP ładowarki wprowadź:\n\n- adres serwera: `{url}`\n- ChargeID: `{serial}`\n\nAdres zaczyna się od **ws://**, nie od wss://. Następnie włącz OCPP na ładowarce (przycisk OK → Wi-Fi). Jeśli Home Assistant działa w Dockerze bez trybu sieci hosta, ten adres może być adresem samego kontenera — wtedy wprowadź adres komputera w Twojej sieci domowej (lub ustaw go w „Ustawienia → System → Sieć → Sieć lokalna”)."
+        "title": "Adres serwera dla ładowarki",
+        "description": "Sprawdź, czy poniższy adres zawiera adres IP Twojego Home Assistanta. Jeśli widać inny adres, np. ws://172.17.0.2, zamknij to okno, otwórz „Ustawienia → System → Sieć”, w sekcji „Sieć lokalna” wyłącz „Automatycznie”, wpisz http://adres-IP-komputera:8123, kliknij „Zapisz” i zacznij od nowa.\n\nW aplikacji EV-Charger, w ustawieniach OCPP, wpisz:\n\n- adres serwera: `{url}`\n- ChargeID: `{serial}`\n\nNastępnie na ładowarce naciśnij OK, wybierz Wi-Fi — widać tam wpisany adres — włącz OCPP i wyjdź z menu. Kliknij „Zatwierdź”."
       },
       "discovery_confirm": {
         "title": "Ładowarka {serial} połączona",
@@ -75,34 +75,35 @@
       }
     },
     "progress": {
-      "provision": "Zapisywanie ustawień w ładowarce przez Bluetooth. Pozostań blisko ładowarki — potrwa to około pół minuty.",
-      "wait_connect": "Oczekiwanie na połączenie ładowarki z Home Assistantem (do 10 minut)."
+      "provision": "Zapisywanie ustawień w ładowarce — około pół minuty.",
+      "wait_connect": "Oczekiwanie na połączenie ładowarki — do 10 minut."
     },
     "error": {
-      "no_devices": "Nie znaleziono ładowarki przez Bluetooth. Wyłącz OCPP na ładowarce (przycisk OK → Wi-Fi). Jeśli OCPP jest już wyłączone, z ładowarką może być połączone inne urządzenie, np. telefon z aplikacją — zamknij aplikację i spróbuj ponownie.",
+      "no_devices": "Nie znaleziono ładowarki. Wyłącz OCPP na ładowarce, zamknij aplikację na telefonie, przysuń adapter Bluetooth bliżej ładowarki i kliknij „Zatwierdź”.",
       "ssid_ascii": "Ładowarka akceptuje w nazwie sieci tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne. Zmień nazwę sieci w ustawieniach routera.",
-      "ssid_long": "Nazwa sieci jest dłuższa niż 32 znaki.",
-      "password_ascii": "Ładowarka akceptuje w haśle tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne.",
-      "password_long": "Hasło jest dłuższe niż 32 znaki.",
-      "host_ascii": "Adres może zawierać tylko litery łacińskie, cyfry i znaki specjalne.",
-      "host_long": "Adres jest za długi dla ładowarki (maksymalnie 128 znaków).",
+      "ssid_long": "Nazwa sieci jest dłuższa niż 32 znaki. Zmień nazwę sieci w ustawieniach routera.",
+      "password_ascii": "Ładowarka akceptuje w haśle tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne. Zmień hasło w ustawieniach routera.",
+      "password_long": "Hasło jest dłuższe niż 32 znaki. Zmień hasło w ustawieniach routera.",
+      "host_ascii": "Wpisz adres IP, np. 192.168.1.10.",
+      "host_long": "Adres jest za długi.",
       "host_empty": "Wprowadź adres Home Assistanta.",
-      "port_busy": "Ten port jest zajęty przez inny program. Wybierz inny.",
+      "port_busy": "Ten port jest używany przez inny program. Wpisz inny, np. 9001.",
       "serial_invalid": "Numer seryjny składa się z 12 cyfr.",
       "preset_required": "Wybierz wersję ładowarki.",
-      "ble_not_found": "Ładowarka jest poza zasięgiem Bluetooth. Podejdź bliżej lub dodaj w pobliżu proxy Bluetooth ESPHome.",
-      "ble_connect_failed": "Nie udało się połączyć z ładowarką przez Bluetooth. Sprawdź, czy OCPP jest na niej wyłączone, i spróbuj ponownie.",
-      "ble_not_charger": "To urządzenie nie odpowiada jak ładowarka GNLT.",
-      "ble_no_answer": "Ładowarka przestała odpowiadać. Podejdź bliżej. Jeśli z ładowarką jest połączone inne urządzenie, np. telefon z aplikacją, zamknij aplikację i spróbuj ponownie.",
-      "ble_rejected": "Ładowarka nie przyjęła ustawień. Sprawdź nazwę sieci i hasło.",
-      "ble_failed": "Konfiguracja przez Bluetooth nie powiodła się. Spróbuj ponownie.",
-      "firmware_too_old": "Ta wersja ładowarki nie może współpracować z Home Assistantem przez OCPP. Skontaktuj się ze sprzedawcą."
+      "ble_not_found": "Nie znaleziono ładowarki. Wyłącz OCPP na ładowarce, zamknij aplikację na telefonie, przysuń adapter Bluetooth bliżej ładowarki i kliknij „Zatwierdź”.",
+      "ble_connect_failed": "Nie udało się połączyć z ładowarką. Wyłącz OCPP na ładowarce, zamknij aplikację na telefonie i kliknij „Zatwierdź”.",
+      "ble_no_answer": "Ładowarka nie odpowiada. Zamknij aplikację na telefonie i kliknij „Zatwierdź”.",
+      "ble_rejected": "Ładowarka nie przyjęła ustawień. Kliknij ponownie „Zatwierdź”.",
+      "ble_failed": "Konfiguracja przez Bluetooth nie powiodła się. Przysuń adapter Bluetooth bliżej ładowarki i kliknij „Zatwierdź”."
     },
     "abort": {
       "already_configured": "Ta ładowarka jest już dodana.",
-      "already_in_progress": "Ta ładowarka jest już konfigurowana.",
-      "not_supported": "To urządzenie nie jest ładowarką GNLT.",
-      "reprovisioned": "Ładowarka otrzymała nowe ustawienia sieci. Włącz OCPP na ładowarce (przycisk OK → Wi-Fi) — połączy się ponownie z Home Assistantem."
+      "already_in_progress": "Ta ładowarka jest już konfigurowana w innym oknie. Zamknij to okno. Jeśli w sekcji „Wykryte” jest karta tej ładowarki, kontynuuj z niej.",
+      "not_supported": "To nie jest ładowarka GNLT.",
+      "reprovisioned": "Ładowarka otrzymała nowe ustawienia. Poczekaj, aż na ekranie ładowarki pojawi się ikona Wi-Fi, naciśnij OK, wybierz Wi-Fi, włącz OCPP i wyjdź z menu.",
+      "ble_not_charger": "To nie jest ładowarka GNLT.",
+      "firmware_too_old": "Ta wersja ładowarki nie może współpracować z Home Assistantem przez OCPP. Skontaktuj się ze sprzedawcą.",
+      "continue_setup": "Kontynuujemy konfigurację."
     }
   },
   "options": {
@@ -121,8 +122,8 @@
         },
         "data_description": {
           "auto_start": "Home Assistant sam rozpoczyna ładowanie, gdy podłączysz kabel do samochodu. Nie działa razem z harmonogramem: włączenie jednej opcji wyłącza drugą.",
-          "resume_after_power_loss": "Jeśli podczas ładowania zabraknie prądu, Home Assistant wznowi je po jego powrocie — o ile kabel nie został odłączony. Działa na ładowarkach z oprogramowaniem w wersji 2.8 lub nowszej.",
-          "price": "Służy do obliczania kosztu każdego ładowania. Puste lub 0 — koszt nie jest liczony.",
+          "resume_after_power_loss": "Jeśli podczas ładowania zabraknie prądu, Home Assistant wznowi ładowanie po jego powrocie, o ile kabel nie został odłączony. Działa z oprogramowaniem ładowarki w wersji 2.8 lub nowszej.",
+          "price": "Cena za 1 kWh. 0 — koszt nie jest obliczany.",
           "night_price": "Dla taryfy dwustrefowej. 0 oznacza taryfę jednostrefową. Energia dostarczona w nocy jest liczona według tej ceny, nawet jeśli ładowanie zaczęło się w dzień."
         },
         "description": "Ceny podane są za 1 kWh, w walucie ustawionej w Home Assistant ({currency})."
@@ -338,10 +339,10 @@
       "message": "Ładowarka nie odpowiedziała na czas. Spróbuj ponownie."
     },
     "call_error": {
-      "message": "Ładowarka nie mogła wykonać polecenia ({detail})."
+      "message": "Ładowarka nie mogła wykonać polecenia."
     },
     "rejected": {
-      "message": "Ładowarka nie przyjęła polecenia ({detail})."
+      "message": "Ładowarka nie przyjęła polecenia."
     },
     "start_rejected": {
       "message": "Ładowarka nie przyjęła polecenia startu. Jeśli kabel jest podłączony do samochodu od dłuższego czasu, wybudź samochód (np. otwórz drzwi) albo odłącz kabel, podłącz go ponownie i rozpocznij ładowanie."
@@ -353,13 +354,13 @@
       "message": "Ładowanie już trwa."
     },
     "unavailable": {
-      "message": "Ładowarka jest teraz nieczynna."
+      "message": "Ładowarka nie może teraz ładować."
     },
     "no_session": {
       "message": "To ładowanie zostało rozpoczęte przez samą ładowarkę i nie można go zatrzymać zwykłym poleceniem. Użyj przycisku „Przerwij ładowanie” lub odłącz kabel."
     },
     "nothing_to_interrupt": {
-      "message": "Nie ma czego przerwać: ładowarka nie ładuje teraz samodzielnie. Zwykłe ładowanie zatrzymasz głównym przełącznikiem ładowania."
+      "message": "Nie ma czego przerwać. Zwykłe ładowanie zatrzymuje się przełącznikiem „Ładowanie”."
     },
     "not_supported": {
       "message": "Ta ładowarka nie obsługuje tego ustawienia przez OCPP."
