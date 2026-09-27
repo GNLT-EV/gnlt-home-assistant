@@ -188,7 +188,8 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
 
     async def async_step_pick_device(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
         found = discovered_chargers(self.hass)
-        if user_input is not None:
+        # "Submit" on the empty "not found" form carries no address: search again.
+        if user_input is not None and CONF_ADDRESS in user_input:
             self._address = user_input[CONF_ADDRESS]
             self._ble_name = found.get(self._address, self._address)
             return await self.async_step_wifi()
@@ -249,8 +250,14 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
 
         default_host = (user_input or {}).get(CONF_HOST) or await _lan_address(self.hass)
         schema: dict[Any, Any] = {
-            vol.Required(CONF_SSID, default=(user_input or {}).get(CONF_SSID, "")): str,
-            vol.Required(CONF_PASSWORD): TextSelector(TextSelectorConfig(type=TextSelectorType.PASSWORD)),
+            # Without autocomplete hints the browser fills in the login and
+            # password it keeps for Home Assistant itself (stand, 27.09.2026).
+            vol.Required(CONF_SSID, default=(user_input or {}).get(CONF_SSID, "")): TextSelector(
+                TextSelectorConfig(autocomplete="off")
+            ),
+            vol.Required(CONF_PASSWORD): TextSelector(
+                TextSelectorConfig(type=TextSelectorType.PASSWORD, autocomplete="new-password")
+            ),
             vol.Required(CONF_HOST, default=default_host): str,
         }
         if running_port is None:

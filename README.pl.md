@@ -28,18 +28,19 @@ przez OCPP 1.6J w sieci domowej – bez chmury i bez zewnętrznych serwerów.
   adres; jeśli się zmieni, ładowarka przestanie się łączyć.
 - Wolny port TCP 9000 na urządzeniu z Home Assistant. W Dockerze: `network_mode: host` albo mapowanie portu
   `-p 9000:9000`. Nie udostępniaj tego portu w internecie.
-- Sieć Wi-Fi 2,4 GHz dla ładowarki; nazwa sieci i hasło mogą zawierać tylko litery bez polskich znaków (A–Z, a–z),
-  cyfry i znaki specjalne
+- Wi-Fi dla ładowarki: 2,4 GHz z zabezpieczeniem WPA2. Ładowarka nie obsługuje sieci 5 GHz, WPA3 ani trybów mieszanych
+  (WPA/WPA2, WPA2/WPA3). Nazwa sieci i hasło mogą zawierać tylko litery bez polskich znaków (A–Z, a–z), cyfry i znaki specjalne
 - Opcjonalnie: Bluetooth w pobliżu ładowarki (wbudowany, adapter USB albo ESPHome Bluetooth Proxy)
 
 ## Instalacja
 
 ### HACS (zalecane)
 
-1. HACS → ⋮ → **Niestandardowe repozytoria** → dodaj `https://github.com/GNLT-EV/gnlt-home-assistant`
+1. W menu po lewej otwórz **HACS**, w prawym górnym rogu ⋮ → **Niestandardowe repozytoria** → dodaj `https://github.com/GNLT-EV/gnlt-home-assistant`
    i wybierz typ **Integracja**.
 2. Znajdź **GNLT EV Charger** w HACS i kliknij **Pobierz**.
-3. Uruchom ponownie Home Assistant.
+3. Uruchom ponownie Home Assistanta: **Ustawienia → System** → ⏻ w prawym górnym rogu → **Uruchom ponownie Home
+   Assistanta**.
 
 Kolejne aktualizacje będą się pojawiać w Home Assistant tak samo jak wszystkie inne.
 
@@ -50,11 +51,11 @@ Home Assistant i uruchom ponownie Home Assistant.
 
 ## Podłączenie ładowarki
 
-Ustawienia → Urządzenia oraz usługi → **Dodaj integrację** → **GNLT EV Charger**.
+Ustawienia → Urządzenia oraz usługi → **Dodaj integrację** → wpisz `GNLT` w wyszukiwarce → **GNLT EV Charger**.
 
 ### Przez Bluetooth (zalecane)
 
-1. Na ekranie ładowarki otwórz **Settings → Wi-Fi** i wyłącz **OCPP**. Dopóki OCPP jest włączone, ładowarka nie jest
+1. Na ładowarce naciśnij środkowy przycisk **OK**, wybierz **Wi-Fi** i wyłącz **OCPP**. Dopóki OCPP jest włączone, ładowarka nie jest
    wykrywana przez Bluetooth. Wi-Fi zostaw włączone.
 2. W kreatorze wybierz **Skonfiguruj ładowarkę przez Bluetooth**. Ładowarka może też pojawić się sama jako wykryte
    urządzenie.
@@ -63,29 +64,37 @@ Ustawienia → Urządzenia oraz usługi → **Dodaj integrację** → **GNLT EV 
    **Rozpoczynaj ładowanie na polecenie, a nie po podłączeniu kabla** zostaw zaznaczoną.
 5. Home Assistant zapisze ustawienia w ładowarce – trwa to około pół minuty, zostań w pobliżu.
 6. Sprawdź wersję ładowarki (jedno- lub trójfazowa, moc). Zwykle ładowarka podaje ją sama.
-7. Na ładowarce: poczekaj na ikonę Wi-Fi na ekranie, potem w **Settings → Wi-Fi** włącz **OCPP**. Ten krok trzeba
+7. Na ładowarce: poczekaj na ikonę Wi-Fi na ekranie, potem naciśnij **OK**, wybierz **Wi-Fi** i włącz **OCPP**. Ten krok trzeba
    wykonać ręcznie. W Home Assistant kliknij **Zatwierdź** – Home Assistant zaczeka, aż ładowarka się połączy.
+
+Jeśli Home Assistant nie znajduje ładowarki albo ładowarka przestaje odpowiadać, mimo że OCPP jest wyłączone, możliwe,
+że jest z nią połączone inne urządzenie, np. telefon z aplikacją GNLT. Zamknij aplikację i spróbuj ponownie.
 
 ### Ręcznie (bez Bluetooth)
 
-1. W kreatorze wybierz **Ładowarka jest już w sieci — wprowadź jej numer**. Wpisz 12-cyfrowy numer seryjny podany
+1. Jeśli ładowarka nie jest jeszcze w Twojej sieci Wi-Fi, połącz ją z siecią w aplikacji GNLT: ikona kodu QR lub „+” w prawym
+   górnym rogu → zeskanuj kod QR ładowarki (w instrukcji obsługi i pod pokrywą ładowarki) → wpisz 6-cyfrowy kod PUK
+   (na odwrocie instrukcji) → „Potwierdź dodanie”. Potem stuknij ikonę Wi-Fi w aplikacji i wpisz nazwę oraz hasło sieci.
+2. W kreatorze wybierz **Ładowarka jest już w sieci — wprowadź jej numer**. Wpisz 12-cyfrowy numer seryjny podany
    na obudowie i wersję ładowarki.
-2. Kreator pokaże adres w postaci `ws://192.168.1.10:9000/ocpp/`. Wpisz go w ustawieniach OCPP ładowarki, a w polu
+3. Kreator pokaże adres w postaci `ws://192.168.1.10:9000/ocpp/`. Wpisz go w ustawieniach OCPP ładowarki, a w polu
    ChargeID – numer seryjny. Adres zaczyna się od `ws://`, nie `wss://`. Jeśli Home Assistant działa w Dockerze bez
    trybu sieci hosta, kreator może pokazać wewnętrzny adres kontenera (172.x.x.x) – wtedy najpierw otwórz
    Ustawienia → System → Sieć → Sieć lokalna i wpisz tam adres swojego komputera.
-3. Zmieniając adres w ładowarce, zachowaj kolejność: wyłącz OCPP → wpisz adres → włącz OCPP → wyjdź z menu.
+4. Zmieniając adres w ładowarce, zachowaj kolejność: wyłącz OCPP → wpisz adres → włącz OCPP → wyjdź z menu.
    W przeciwnym razie ładowarka nadal będzie łączyć się ze starym adresem.
 
 ## Powrót do aplikacji GNLT
 
 1. W Home Assistant usuń urządzenie: Ustawienia → Urządzenia oraz usługi → GNLT EV Charger → ⋮ → Usuń.
-2. Na ładowarce wyłącz OCPP (**Settings → Wi-Fi**).
+2. Na ładowarce wyłącz OCPP (przycisk **OK** → **Wi-Fi**).
 3. W aplikacji GNLT dodaj ładowarkę ponownie przez Bluetooth. Aplikacja sama zapisze w ładowarce adres serwera GNLT.
 4. Włącz OCPP na ładowarce.
 
 ## Warto wiedzieć
 
+- Nazwy czujników i przełączników ładowarki są wyświetlane w języku samego Home Assistanta, a nie w języku
+  Twojego profilu.
 - Po utracie połączenia z siecią ładowarka jeszcze przez około dwie minuty jest widoczna jako połączona – to normalne.
 - Jeśli samochód nie zaczął się ładować (zwykle dlatego, że przeszedł w tryb uśpienia), ładowanie może rozpocząć się
   samo, gdy samochód się wybudzi. Jeśli tego nie chcesz, odłącz kabel.
@@ -93,12 +102,12 @@ Ustawienia → Urządzenia oraz usługi → **Dodaj integrację** → **GNLT EV 
 
 ## Jeśli coś nie działa
 
-- **Brak ikony Wi-Fi na ładowarce** – błędna nazwa lub hasło sieci albo sieć działa tylko w paśmie 5 GHz.
-  Powtórz konfigurację.
+- **Brak ikony Wi-Fi na ładowarce** – sprawdź nazwę i hasło sieci oraz ustawienia routera: wymagane jest pasmo 2,4 GHz
+  i zabezpieczenie WPA2 (bez trybu mieszanego). Potem powtórz konfigurację.
 - **Ikona Wi-Fi jest, ale ładowarka nie łączy się z Home Assistant** – sprawdź, czy OCPP jest włączone, czy adres
   Home Assistant jest poprawny i czy port 9000 jest dostępny. Pomaga też odłączenie ładowarki od zasilania na minutę.
-- **Home Assistant nie wykrywa ładowarki przez Bluetooth** – OCPP jest nadal włączone albo adapter Bluetooth jest
-  za daleko od ładowarki.
+- **Home Assistant nie wykrywa ładowarki przez Bluetooth** – OCPP jest nadal włączone, adapter Bluetooth jest
+  za daleko od ładowarki albo z ładowarką jest połączony telefon z aplikacją GNLT.
 
 ## Pomoc
 

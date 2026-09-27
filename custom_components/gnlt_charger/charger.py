@@ -884,7 +884,9 @@ class Charger:
             await asyncio.sleep(COMMAND_GAP_S)
         res = await self.call("RemoteStartTransaction", {"connectorId": 1, "idTag": ID_TAG})
         if res.get("status") != "Accepted":
-            raise ChargerError("rejected", str(res.get("status")))
+            # With the cable in, a refusal is usually a car that fell asleep
+            # (26.09.2026): say how to wake it rather than just "rejected".
+            raise ChargerError("start_rejected" if self.cable_connected else "rejected", str(res.get("status")))
 
     async def _auto_start(self) -> None:
         if time.monotonic() - self._last_auto_start < AUTO_START_COOLDOWN_S:

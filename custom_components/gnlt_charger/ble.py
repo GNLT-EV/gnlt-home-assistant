@@ -59,6 +59,7 @@ from .protocol import (
 _LOGGER = logging.getLogger(__name__)
 
 REPLY_TIMEOUT_S = 6.0
+DATA_SERVICE_UUID = "55e405d2-af9f-a98f-e54a-7dfe43535355"
 _SERIAL_NAME = re.compile(r"^\d{12}$")
 
 
@@ -106,7 +107,13 @@ class ChargerLink:
         except Exception as err:  # noqa: BLE001 - bleak raises many types
             raise BleError("ble_connect_failed", str(err)) from err
 
-        for service in self._client.services:
+        # The known data service first: the charger also has a second service
+        # with the same properties that only echoes what is written into it,
+        # and BlueZ lists that one first (stand, 27.09.2026). The platform
+        # app uses the same UUID; properties remain the fallback for other
+        # revisions of the radio module.
+        services = sorted(self._client.services, key=lambda s: s.uuid.lower() != DATA_SERVICE_UUID)
+        for service in services:
             write = next((c for c in service.characteristics if "write" in c.properties), None)
             no_ack = next((c for c in service.characteristics if "write-without-response" in c.properties), None)
             notify = next(
