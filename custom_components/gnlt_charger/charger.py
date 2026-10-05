@@ -20,7 +20,11 @@ GNLT repository, ``CLAUDE.md`` -> "Нестандартная логика"):
 * the connection is dead only after 135 s of COMPLETE silence - dropping it on
   a missed pong made the firmware hang until unplugged;
 * the clock is sent as local time with offset;
-* the energy counter is blink-proof (``logic.EnergyCounter``).
+* energy is the charger's own figures: final value of every charge + the
+  register of the running one, drops judged by the rules shared with the GNLT
+  platform (``logic.ChargeLedger``);
+* on firmware known to report the power of one phase on three phases the
+  power shown is the sum of U x I (``logic.one_phase_power_fix``).
 """
 
 from __future__ import annotations
@@ -30,6 +34,7 @@ import json
 import logging
 import time
 import uuid
+from collections import deque
 from collections.abc import Awaitable, Callable
 from dataclasses import dataclass, field
 from datetime import UTC, datetime, timedelta
@@ -43,15 +48,20 @@ from .logic import (
     CALL,
     CALLERROR,
     CALLRESULT,
-    EnergyCounter,
+    ONE_PHASE_POWER_PROFILES,
+    ChargeLedger,
+    ChargeRecord,
+    Delta,
     FrameError,
     Schedule,
     Tariff,
     Totals,
+    apparent_power_va,
     extract_metrics,
     iso_in_zone,
     parse_frame,
     parse_ts,
+    one_phase_power_fix,
     plugged_idle,
     station_timestamp,
     supports_resume_after_power_loss,
@@ -95,7 +105,21 @@ EMPTY_SESSION_S = 180
 # not take.
 EMPTY_SESSION_STATUSES = frozenset({"Preparing", "Finishing"})
 METER_STALE_S = 90
+# One charge, whether current flows or the car or the charger paused it.
+ACTIVE_STATUSES = ("Charging", "SuspendedEV", "SuspendedEVSE")
+# After StopTransaction the charger normally reports the new status within a
+# second. After an emergency stop (over current, 04.10.2026) it reported
+# nothing: Home Assistant showed "Charging" at 0 kW for minutes, until the
+# status was asked for. Asked for after this pause.
+STATUS_AFTER_STOP_S = 8
+# A phase carries the charge when its current is above this.
+PHASE_ACTIVE_A = 1.0
+# ...and stops carrying it below this (a phase hovering around 1 A does not flap;
+# a residual 0.6 A on an unused phase is not a phase in use).
+PHASE_OFF_A = 0.7
 ID_TAG = "HomeAssistant"
+# Frames kept for the diagnostics file (Settings -> Devices -> Download diagnostics).
+FRAME_LOG_SIZE = 300
 
 
 class ChargerError(Exception):
@@ -127,6 +151,25 @@ def _now() -> datetime:
     return datetime.now(UTC)
 
 
+def _end_reading(data: Any) -> float | None:
+    """The register at the END of the charge from transactionData, when a
+    StopTransaction came without meterStop (OCPP 1.6 ReadingContext
+    "Transaction.End"). Never "Transaction.Begin": this charger puts the
+    reading at the START of the charge (0) into every StopTransaction - taken
+    as current it zeroed "Energy of this charge" (partner's bench, 25.09.2026)."""
+    for mv in data if isinstance(data, list) else []:
+        if not isinstance(mv, dict):
+            continue
+        ends = [
+            s for s in mv.get("sampledValue") or []
+            if isinstance(s, dict) and s.get("context") == "Transaction.End"
+        ]
+        wh = extract_metrics(ends).energy_wh
+        if wh is not None:
+            return wh
+    return None
+
+
 class Charger:
     def __init__(
         self,
@@ -146,7 +189,7 @@ class Charger:
         self._listeners: list[Callable[[], None]] = []
 
         stored = stored or {}
-        self.energy = EnergyCounter.from_dict(stored.get("energy"))
+        self.energy = ChargeLedger.from_dict(stored.get("energy"))
         self.desired_current_a: int | None = stored.get("desired_current_a")
         self._tx_counter: int = int(stored.get("tx_counter", 0))
         self.last_tx_id: int | None = stored.get("last_tx_id")
@@ -156,6 +199,13 @@ class Charger:
         self.tx_id: int | None = stored.get("tx_id")
         self.tx_meter_start: float | None = stored.get("tx_meter_start")
         self.tx_started_at: datetime | None = parse_ts(stored.get("tx_started_at"))
+        carried = self.energy.open_record
+        if carried is not None and carried.number is None and carried.started is None and self.tx_id is not None:
+            # A charge carried over from the old storage format: it is the open
+            # session - its number and start let a late stop of an EARLIER
+            # charge be told apart from its own (platform review, 04.10.2026).
+            carried.number = self.tx_id
+            carried.started = self.tx_started_at.isoformat() if self.tx_started_at else None
 
         # identity of the unit
         self.vendor: str | None = stored.get("vendor")
@@ -216,6 +266,26 @@ class Charger:
         # itself (partner's bench, 25.09.2026: 20 and 22 while HA had no open
         # session) - the best number for "Interrupt charging".
         self.station_tx_id: int | None = None
+        # Last frames in both directions, for the diagnostics download.
+        self.frames: deque[tuple[str, str, str]] = deque(maxlen=FRAME_LOG_SIZE)
+        # Phases that carry the charge, from the per-phase currents; None
+        # outside a charge. A change in the middle of a charge is logged.
+        self.phases_in_use: int | None = None
+        # Active power reported by the charger far from the sum of U x I of the
+        # phases: kept for the diagnostics file (see _check_power).
+        self.power_mismatch: dict[str, Any] | None = None
+        # The charger's own power figure when the one shown is calculated
+        # (ONE_PHASE_POWER_PROFILES); None when the charger's figure is shown.
+        self.power_reported_w: float | None = None
+        self._power_mismatch_in_row = 0
+        self._power_mismatch_logged = False
+        self._phases_seen: int | None = None
+        self._phases_on: set[str] = set()
+        self._phases_confirmed = False
+        # A charge the charger started by itself is open (counted once).
+        self._own_charge_open = False
+        self._own_charge_since: datetime | None = None
+        self._status_at = 0.0
 
     # --- plumbing -------------------------------------------------------------
 
@@ -296,12 +366,32 @@ class Charger:
         task.add_done_callback(self._tasks.discard)
 
     def adopt(self, settings: ChargerSettings) -> None:
-        """Home Assistant took this charger under its care."""
+        """Home Assistant took this charger under its care, or the owner
+        changed a setting.
+
+        Only the first time is the charger set up again. A changed setting
+        (schedule, price, auto start) sends nothing - re-reading the whole
+        configuration on every switch flick sent GetConfiguration five times
+        in a minute in the middle of a charge and could put the current back
+        (time audit, 04.10.2026). Only a changed reading interval is sent."""
+        first = not self.adopted
+        interval_changed = settings.meter_interval_s != self.settings.meter_interval_s
         self.settings = settings
         self.adopted = True
+        # Rated power for "could the register have restarted" (230 V per phase).
+        self.energy.max_power_w = settings.max_current_a * settings.phases * 230.0
         if self.connected:
-            self._spawn(self._setup_after_boot())
+            if first:
+                self._spawn(self._setup_after_boot())
+            elif interval_changed:
+                self._spawn(self._apply_meter_interval())
         self._notify()
+
+    async def _apply_meter_interval(self) -> None:
+        try:
+            await self._change_config("MeterValueSampleInterval", str(self.settings.meter_interval_s))
+        except ChargerError as err:
+            _LOGGER.warning("%s: reading interval not set: %s", self.identity, err)
 
     async def shutdown(self) -> None:
         for task in list(self._tasks):
@@ -384,7 +474,13 @@ class Charger:
 
     # --- incoming ---------------------------------------------------------------
 
+    def _trace(self, direction: str, raw: str) -> None:
+        """Every OCPP frame: in the debug log and in the diagnostics file."""
+        self.frames.append((_now().isoformat(timespec="milliseconds"), direction, raw))
+        _LOGGER.debug("%s %s %s", self.identity, direction, raw)
+
     async def _on_text(self, raw: str) -> None:
+        self._trace("<-", raw)
         try:
             msg = parse_frame(raw)
         except FrameError:
@@ -406,7 +502,9 @@ class Charger:
         ws = self._ws
         if ws is None or ws.closed:
             raise ChargerError("not_connected")
-        await ws.send_str(json.dumps(frame, separators=(",", ":")))
+        raw = json.dumps(frame, separators=(",", ":"))
+        self._trace("->", raw)
+        await ws.send_str(raw)
         self._last_wire_mono = time.monotonic()
 
     async def _on_call(self, msg_id: str, action: str, payload: dict[str, Any]) -> None:
@@ -463,12 +561,19 @@ class Charger:
     def _on_StatusNotification(self, p: dict[str, Any]) -> tuple[dict[str, Any], Any]:
         connector = p.get("connectorId", 1)
         status = p.get("status")
+        if connector == 0 or not isinstance(status, str):
+            # The charger as a whole: its "Available / NoError" must not wipe
+            # the error of the connector, but an error of its own is shown.
+            error = p.get("errorCode")
+            if error not in (None, "NoError"):
+                self.error_code = error
+                self.vendor_error = p.get("vendorErrorCode") or None
+            return {}, None
         error = p.get("errorCode")
         self.error_code = None if error in (None, "NoError") else error
         self.vendor_error = p.get("vendorErrorCode") or None
-        if connector == 0 or not isinstance(status, str):
-            return {}, None
         self._stop_pending_status = False
+        self._status_at = time.monotonic()
         if status in CABLE_STATUSES:
             self._cable = True
         elif status == "Available":
@@ -484,11 +589,24 @@ class Charger:
         if status != self.status:
             self.previous_status = self.status
             self.status = status
-            if status == "Charging" and self.tx_id is None and self.previous_status != "Charging":
-                # A charge the charger started by itself: no StartTransaction
-                # will come, so this is where its money and count begin.
-                self.session_cost = 0.0
-                self.totals.add_session(self._local(_now()))
+            if self.previous_status is None and status in ACTIVE_STATUSES and self.tx_id is None:
+                # Home Assistant started in the middle of the charger's own
+                # charge (Charging or a pause): the same charge, not a new one.
+                self._own_charge_open = True
+                self._own_charge_since = None
+            elif status == "Charging" and self.tx_id is None and not self._own_charge_open:
+                self._own_charge_open = True
+                self._own_charge_since = _now()
+                if self.previous_status is not None:
+                    # A charge the charger started by itself (straight, or
+                    # through SuspendedEV while the car woke up): no
+                    # StartTransaction will come, so this is where its money,
+                    # count and energy begin. Counted once - a car flapping
+                    # between Preparing and SuspendedEV without current is not
+                    # a charge (third review).
+                    self.session_cost = 0.0
+                    self.totals.add_session(self._local(_now()))
+                    self._new_charge_checks()
         if status in ("Available", "Charging", "SuspendedEV", "SuspendedEVSE"):
             # The cable was taken out, or the car took current after all: the
             # "car did not take the charge" state is over. NOT on Unavailable or
@@ -500,7 +618,22 @@ class Charger:
             # The charger stops sending readings outside a charge; stale power
             # on the dashboard would read as "still charging".
             self.power_w = 0.0
+            self.power_reported_w = None
             self.current = {k: 0.0 for k in self.current}
+        if status in ("Finishing", "Available") and self.tx_id is None and self.energy.is_open:
+            # The charger's own charge is over (its StopTransaction normally came
+            # a second earlier); a late one still finds it.
+            self._count_all(self.energy.close_open(_now()))
+        if status not in ACTIVE_STATUSES:
+            self._own_charge_open = False
+            # The charge is over. Through a pause (SuspendedEV) the phases are
+            # kept: a car that comes back on one phase is exactly the change
+            # to see.
+            self.phases_in_use = None
+            self._phases_seen = None
+            self._phases_on = set()
+            self._phases_confirmed = False
+            self._power_mismatch_in_row = 0
         return {}, self._after_status(status)
 
     async def _after_status(self, status: str) -> None:
@@ -515,6 +648,7 @@ class Charger:
         elif status == "Available":
             if self.tx_id is not None:
                 # The charger forgot the charge (no StopTransaction will come).
+                self._count_all(self.energy.close_open(_now()))
                 self._close_tx()
             self.pending_resume = False
         elif status == "Preparing" and self.pending_resume:
@@ -522,13 +656,14 @@ class Charger:
             # charger waits after the power came back.
             self.pending_resume = False
             if self.tx_id is not None:
+                self._count_all(self.energy.close_open(_now()))
                 self._close_tx()
             if self.settings.resume_after_power_loss and self.resume_supported and self.adopted:
                 _LOGGER.info("%s: resuming the charge interrupted by a power cut", self.identity)
                 await self._auto_start()
                 self._persist()
                 return
-        if self.adopted and self.tx_id is None and plugged_idle(status, self.previous_status):
+        if self.adopted and self.tx_id is None and not self._own_charge_open and plugged_idle(status, self.previous_status):
             if self.settings.auto_start:
                 await self._auto_start()
             elif self.settings.schedule.active(self._local(_now())):
@@ -545,10 +680,11 @@ class Charger:
         self.tx_started_at = station_timestamp(p.get("timestamp"), _now())
         meter_start = p.get("meterStart")
         self.tx_meter_start = float(meter_start) if isinstance(meter_start, (int, float)) else None
-        self.session_wh = 0.0
         self.session_cost = 0.0
         self.totals.add_session(self._local(_now()))
-        self.energy.start_session(self.tx_meter_start)
+        self._count_all(self.energy.start(self.tx_meter_start, tx, self.tx_started_at))
+        self.session_wh = self.energy.session_wh
+        self._new_charge_checks()
         self.last_tx_id = tx
         self.last_tx_at = _now()
         self.pending_resume = False
@@ -616,28 +752,37 @@ class Charger:
 
     def _on_StopTransaction(self, p: dict[str, Any]) -> tuple[dict[str, Any], None]:
         at = station_timestamp(p.get("timestamp"), _now())
-        for mv in p.get("transactionData") or []:
-            if isinstance(mv, dict):
-                # "Transaction.Begin" is the reading at the START of the charge
-                # (OCPP 1.6 ReadingContext) - this charger puts a 0 into every
-                # StopTransaction. Taken as the current reading, it zeroed
-                # "Energy of this charge" whenever no session was open (partner's
-                # bench, 25.09.2026; the GNLT platform drew a drop to 0 at the
-                # end of the curve for the same reason).
-                samples = [
-                    s
-                    for s in mv.get("sampledValue") or []
-                    if not (isinstance(s, dict) and s.get("context") == "Transaction.Begin")
-                ]
-                self._apply_meter(samples, station_timestamp(mv.get("timestamp"), _now()))
+        number = p.get("transactionId")
         meter_stop = p.get("meterStop")
         stop_wh = float(meter_stop) if isinstance(meter_stop, (int, float)) else None
-        self._count(self.energy.finish(stop_wh, at), at)
-        if stop_wh is not None and self.tx_meter_start is not None:
-            self.session_wh = max(0.0, stop_wh - self.tx_meter_start)
-        number = p.get("transactionId")
+        if stop_wh is None:
+            stop_wh = _end_reading(p.get("transactionData"))
+        # The energy: matched to its charge by the ledger - by number, else by
+        # the readings; a stop that fits two charges changes nothing. The
+        # session follows the ledger's decision (one judge, not two).
+        raw = p.get("timestamp") if isinstance(p.get("timestamp"), str) else None
+        deltas, record = self.energy.stop(stop_wh, number, at, raw)
+        self._count_all(deltas)
+        if record is not None and self.last_session and self.last_session.get("rid") == record.rid:
+            # A late final figure of a charge already shown as the last one.
+            self.last_session.update(self._session_energy(record))
+        if self.energy.last_stop == "unresolved":
+            _LOGGER.warning(
+                "%s: StopTransaction %s (final %s Wh, %s) fits no single charge - nothing changed",
+                self.identity, number, stop_wh, at,
+            )
+            self._persist()
+            return {"idTagInfo": {"status": "Accepted"}}, None
+        if self.energy.last_stop == "duplicate" or (record is not None and record is not self.energy.last_record):
+            # A repeated stop, or the stop of an EARLIER charge delivered late
+            # (a retry after the charger was offline): the charge running now
+            # goes on.
+            _LOGGER.info("%s: late StopTransaction %s (ended %s)", self.identity, number, at)
+            self._persist()
+            return {"idTagInfo": {"status": "Accepted"}}, None
+        self.session_wh = self.energy.session_wh
         if number in (None, self.tx_id):
-            self._finish_session(at)
+            self._finish_session(at, record)
         elif self.tx_id is not None:
             # 🔴 The charger sometimes runs a charge under the number of an
             # EARLIER session, not the one we gave it (partner's bench,
@@ -657,30 +802,76 @@ class Charger:
             self._foreign_stop = True
         self._stop_pending_status = True
         self._persist()
-        return {"idTagInfo": {"status": "Accepted"}}, None
+        if p.get("reason") not in (None, "Local", "Remote", "EVDisconnected"):
+            _LOGGER.warning("%s: the charger stopped the charge, reason %s", self.identity, p.get("reason"))
+        return {"idTagInfo": {"status": "Accepted"}}, self._status_after_stop(time.monotonic())
 
-    def _finish_session(self, at: datetime) -> None:
-        started = self.tx_started_at
+    async def _status_after_stop(self, stopped_at: float) -> None:
+        """Ask for the status if the charger did not report one after a stop."""
+        await asyncio.sleep(STATUS_AFTER_STOP_S)
+        if self._status_at > stopped_at or self.status not in ACTIVE_STATUSES:
+            return
+        try:
+            # One try, short: a user's command must not wait behind it.
+            await self._call_once("TriggerMessage", {"requestedMessage": "StatusNotification", "connectorId": 1}, 10)
+        except (ChargerError, ConnectionError) as err:
+            _LOGGER.info("%s: status after stop not requested: %s", self.identity, err)
+
+    def _finish_session(self, at: datetime, record: ChargeRecord | None = None) -> None:
+        record = record or self.energy.last_record
+        started = self.tx_started_at or (parse_ts(record.started) if record else None)
         self.last_session = {
             "energy_kwh": round((self.session_wh or 0.0) / 1000, 3),
             "cost": round(self.session_cost, 2),
             "started": started.isoformat() if started else None,
             "finished": at.isoformat(),
             "minutes": round((at - started).total_seconds() / 60) if started else None,
+            "rid": record.rid if record else None,
         }
+        if record is not None:
+            self.last_session.update(self._session_energy(record))
         self._close_tx()
+
+    @staticmethod
+    def _session_energy(record: ChargeRecord) -> dict[str, Any]:
+        return {
+            "energy_kwh": round(record.energy_wh / 1000, 3),
+            "approximate": record.approximate,
+            "reason": "; ".join(record.reasons) or None,
+        }
+
+    @property
+    def session_started(self) -> datetime | None:
+        """Start of the charge "Energy of this charge" belongs to."""
+        r = self.energy.last_record
+        return parse_ts(r.started) if r else None
 
     def _local(self, at: datetime) -> datetime:
         return at.astimezone(ZoneInfo(self.tz_name))
 
-    def _count(self, wh: float, at: datetime) -> None:
-        """Energy that really went into the car, priced at the moment it did."""
-        if wh <= 0:
-            return
+    def _count(self, wh: float, at: datetime, current: bool = True) -> float:
+        """Energy that really went into the car, priced at the moment it did.
+        Negative: a correction by the charger's final figure, at the moment of
+        the reading it corrects (a chosen policy - see ChargeLedger.stop).
+        Returns the money."""
+        if not wh:
+            return 0.0
         local = self._local(at)
         cost = wh / 1000 * self.settings.tariff.price_at(local)
-        self.session_cost += cost
+        if current:
+            self.session_cost += cost
         self.totals.add(wh, cost, local)
+        return cost
+
+    def _count_all(self, deltas: list[Delta]) -> None:
+        last = self.energy.last_record
+        shown = self.last_session.get("rid") if self.last_session else None
+        for d in deltas:
+            current = last is not None and d.rid == last.rid
+            cost = self._count(d.wh, d.at or _now(), current=current)
+            if not current and d.rid == shown and self.last_session is not None:
+                # A late final figure of the charge shown as the last one.
+                self.last_session["cost"] = round((self.last_session.get("cost") or 0.0) + cost, 2)
 
     def roll_totals(self) -> None:
         before = (self.totals.day, self.totals.month)
@@ -713,7 +904,9 @@ class Charger:
         was_open, self._schedule_was_open = self._schedule_was_open, is_open
         if not self.adopted or not self.connected:
             return
-        charging = self.tx_id is not None or self.status == "Charging"
+        # The charger's own charge paused by itself (SuspendedEVSE) is still a
+        # charge: no start into it (time audit, 04.10.2026).
+        charging = self.tx_id is not None or self.status == "Charging" or self._own_charge_open
         if charging and was_open and not is_open and schedule.enabled and schedule.stop_at_end:
             _LOGGER.info("%s: schedule window closed, stopping", self.identity)
             try:
@@ -727,7 +920,7 @@ class Charger:
             # wake a full car every three minutes), so the schedule never
             # started while the cable stayed in for days (partner's bench,
             # 25.09.2026, 19:48). Once, at the opening only - the same rule as
-            # the platform (scheduler.ts::isStartMoment). A car that sleeps and
+            # the GNLT platform. A car that sleeps and
             # takes nothing is caught by _watch_start.
             await self._auto_start()
             return
@@ -753,19 +946,112 @@ class Charger:
     def _apply_meter(self, samples: Any, at: datetime) -> None:
         m = extract_metrics(samples)
         if m.power_w is not None:
-            self.power_w = m.power_w
+            shown = one_phase_power_fix(
+                m.power_w,
+                m.voltage,
+                m.current,
+                per_phase_power=m.power_per_phase,
+                power_factor=m.power_factor,
+                profile_confirmed=self.firmware in ONE_PHASE_POWER_PROFILES,
+            )
+            self.power_reported_w = m.power_w if shown != m.power_w else None
+            self.power_w = shown
         if m.current:
             self.current.update(m.current)
         if m.voltage:
             self.voltage.update(m.voltage)
+        if m.current and self.status == "Charging":
+            self._count_phases(m.current)
+        if m.power_w is not None:
+            self._check_power(m)
         if m.temperature is not None:
             self.temperature = m.temperature
         if m.soc is not None:
             self.soc = m.soc
         if m.energy_wh is not None:
-            self._count(self.energy.add(m.energy_wh, at), at)
-            base = self.tx_meter_start if self.tx_id is not None and self.tx_meter_start is not None else 0.0
-            self.session_wh = max(0.0, m.energy_wh - base)
+            self._count_all(self.energy.reading(m.energy_wh, self.status in ACTIVE_STATUSES, at))
+            if self.energy.session_wh is not None:
+                self.session_wh = self.energy.session_wh
+
+    def _count_phases(self, current: dict[str, float]) -> None:
+        """How many phases carry the charge. The integration never switches
+        phases (no such command is sent); a change comes from the car or the
+        charger and is written to the log with the currents.
+
+        A phase counts from PHASE_ACTIVE_A and stops counting below PHASE_OFF_A;
+        a CHANGE is taken when two readings in a row agree - a phase
+        hovering around 1 A does not flood the log."""
+        previous = self.phases_in_use
+        active = 0
+        for ph, amps in current.items():
+            was_on = previous is not None and ph in self._phases_on
+            if amps > PHASE_ACTIVE_A or (was_on and amps > PHASE_OFF_A):
+                active += 1
+        if not active:
+            return
+        seen, self._phases_seen = self._phases_seen, active
+        if active == previous:
+            self._phases_confirmed = self._phases_confirmed or seen == active
+            return
+        if previous is not None and seen != active:
+            return
+        self._phases_on = {ph for ph, a in current.items() if a > PHASE_ACTIVE_A}
+        # A number seen only once (phases closing one after another at the
+        # start) is replaced silently.
+        if previous is not None and self._phases_confirmed:
+            _LOGGER.warning(
+                "%s: charging on %s phase(s) instead of %s, currents %s A, voltages %s V, status %s",
+                self.identity, active, previous, self.current, self.voltage, self.status,
+            )
+        self.phases_in_use = active
+        self._phases_confirmed = False
+
+    def _new_charge_checks(self) -> None:
+        self._power_mismatch_logged = False
+        self._power_mismatch_in_row = 0
+
+    def _check_power(self, m: Any) -> None:
+        """Compare the active power the charger reported with the sum of U x I
+        of the phases of the same reading (apparent power).
+
+        Neither figure is changed and no cause is assumed - they may differ
+        honestly (power factor), or our reading of the frame may be wrong. A big
+        difference is kept, with the raw values, for the diagnostics file and
+        written to the log once per charge. A known case (a profile reporting
+        one phase, see one_phase_power_fix) is not a mismatch."""
+        complete = bool(m.current) and bool(m.voltage)
+        va = apparent_power_va(m.voltage, m.current) if complete else 0.0
+        if (
+            not complete
+            or self.status != "Charging"
+            or self.power_reported_w is not None
+            or va < 500
+            or abs(m.power_w - va) <= 0.25 * va
+        ):
+            self._power_mismatch_in_row = 0
+            return
+        # Two readings in a row: power and current of one reading may be taken
+        # a moment apart while the car ramps up.
+        self._power_mismatch_in_row += 1
+        if self._power_mismatch_in_row >= 2:
+            first = not self._power_mismatch_logged
+            self._power_mismatch_logged = True
+            self.power_mismatch = {
+                "at": _now().isoformat(timespec="seconds"),
+                "active_power_w": m.power_w,
+                "apparent_power_va": round(va),
+                "power_per_phase": m.power_per_phase,
+                "power_factor": m.power_factor,
+                "current_a": dict(m.current),
+                "voltage_v": dict(m.voltage),
+                "firmware": self.firmware,
+            }
+            if first:
+                _LOGGER.warning(
+                    "%s: active power %s W, calculated apparent power %s VA (U x I) - cause not established "
+                    "(currents %s A, voltages %s V)",
+                    self.identity, m.power_w, round(va), m.current, m.voltage,
+                )
 
     # --- outgoing ---------------------------------------------------------------
 
@@ -867,9 +1153,12 @@ class Charger:
         self._notify()
 
     async def start(self) -> None:
+        # A fault first: after an emergency stop the charge may still look open.
+        if self.status == "Faulted":
+            raise ChargerError("faulted", self.vendor_error or self.error_code or "-")
         if self.status == "Charging" or (self.tx_id is not None and not self.empty_session):
             raise ChargerError("already_charging")
-        if self.status in ("Unavailable", "Faulted"):
+        if self.status == "Unavailable":
             raise ChargerError("unavailable")
         if self.empty_session:
             # Live test 25.09.2026: after an empty session the charger REJECTS

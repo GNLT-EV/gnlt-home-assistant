@@ -21,6 +21,9 @@
           "noerror": "mdi:check-circle-outline"
         }
       },
+      "phases_in_use": {
+        "default": "mdi:sine-wave"
+      },
       "current_l1": {
         "default": "mdi:current-ac"
       },

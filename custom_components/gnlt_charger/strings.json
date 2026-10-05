@@ -181,6 +181,12 @@
       "power": {
         "name": "Power"
       },
+      "apparent_power": {
+        "name": "Apparent power (U×I)"
+      },
+      "phases_in_use": {
+        "name": "Phases in use"
+      },
       "current_l1": {
         "name": "Current L1"
       },
@@ -203,7 +209,7 @@
         "name": "Energy of this charge"
       },
       "total_energy": {
-        "name": "Energy total"
+        "name": "Energy total (HA)"
       },
       "temperature": {
         "name": "Temperature"
@@ -355,6 +361,9 @@
     },
     "unavailable": {
       "message": "The charger cannot charge right now."
+    },
+    "faulted": {
+      "message": "The charger reports an error ({detail}) and cannot charge. Unplug the cable from the car and plug it in again. If the error stays, press \"Restart\" on the charger page."
     },
     "no_session": {
       "message": "This charge was started by the charger itself and cannot be stopped with the usual command. Use the \"Interrupt charging\" button or unplug the cable."

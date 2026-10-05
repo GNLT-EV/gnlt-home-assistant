@@ -12,9 +12,12 @@ bezpośrednio w Twojej sieci domowej, bez chmury.
 ## Funkcje
 
 - Uruchamianie i zatrzymywanie ładowania, limit prądu (można go zmieniać także w trakcie ładowania)
-- Moc, prąd, napięcie, energia ładowania i energia całkowita – do panelu „Energia” w Home Assistant
+- Moc i moc pozorna (U×I), prąd, napięcie, energia ładowania; energia całkowita – do panelu „Energia” w Home Assistant
 - Harmonogram ładowania, cena energii (taryfa jedno- lub dwustrefowa), koszt ładowania, podsumowania dzienne i miesięczne
-- Ostrzeżenia: „Samochód nie zaczął się ładować”, „Ładowanie rozpoczęte przez samą ładowarkę”, „Złącze nieczynne”
+- Ostrzeżenia: „Samochód nie zaczął się ładować”, „Ładowanie rozpoczęte przez samą ładowarkę”, „Złącze nieczynne”,
+  „Ładowarka zatrzymała ładowanie” – z prawdopodobną przyczyną
+- Liczba faz, którymi w danej chwili ładuje się samochód
+- Plik diagnostyczny dla pomocy technicznej
 - Połączenie ładowarki przez Bluetooth lub ręczne
 - Języki: angielski, polski, rosyjski
 
@@ -158,6 +161,11 @@ Użyj tego sposobu, jeśli Home Assistant nie ma Bluetootha.
 ## Warto wiedzieć
 
 - Nazwy czujników i przełączników ładowarki są wyświetlane w języku Home Assistanta wybranym w ustawieniach systemu.
+- Do panelu „Energia” dodaj czujnik **Energia całkowita (HA)**: uwzględnia wszystkie ładowania, także te rozpoczęte przez samą ładowarkę.
+  Liczy energię od chwili dodania ładowarki do Home Assistanta; „Total” na ekranie ładowarki to energia od początku jej pracy.
+- Ładowarki z oprogramowaniem `SW:A3B_2.7-HW:B07_0.4` i `SW:A3B_3.1-HW:B07_0.5` przy ładowaniu trójfazowym podają
+  moc tylko jednej fazy. Czujnik **Moc** pokazuje wtedy sumę U×I dla wszystkich faz (wartość obliczona); moc podana
+  przez ładowarkę znajduje się w atrybutach czujnika.
 - Po utracie połączenia ładowarka jest jeszcze przez około dwie minuty widoczna jako połączona.
 - Jeśli samochód nie zaczął się ładować, ładowanie może rozpocząć się samo, gdy samochód się wybudzi. Jeśli tego nie
   chcesz, odłącz kabel.
@@ -187,6 +195,12 @@ Użyj tego sposobu, jeśli Home Assistant nie ma Bluetootha.
 - **„Ta wersja ładowarki nie może współpracować z Home Assistantem przez OCPP.”** Skontaktuj się ze sprzedawcą. Aby
   korzystać z aplikacji EV-Charger, wykonaj kroki 1, 4 i 5 z sekcji
   [Powrót do aplikacji EV-Charger](#powrót-do-aplikacji-ev-charger).
+- **Powiadomienie „… ładowarka zatrzymała ładowanie”.** Postępuj zgodnie z treścią powiadomienia. „Prąd powyżej limitu”
+  zwykle oznacza, że samochód nie stosuje się do ustawionego limitu prądu i pobiera więcej. Ustaw inną
+  wartość **Limitu prądu** – na przykład 10 A albo maksymalną – a następnie odłącz kabel od samochodu i podłącz go ponownie.
+- **Odczyty lub ładowanie wyglądają inaczej, niż oczekujesz.** Od razu po takim zdarzeniu pobierz plik diagnostyczny:
+  **Ustawienia** → **Urządzenia oraz usługi** → **GNLT EV Charger** → przy ładowarce **⋮** → **Pobierz diagnostykę**.
+  Wyślij nam ten plik – dane kontaktowe poniżej. Plik nie zawiera nazwy ani hasła sieci Wi-Fi.
 
 ## Pomoc
 

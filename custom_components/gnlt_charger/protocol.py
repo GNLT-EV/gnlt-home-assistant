@@ -1,8 +1,8 @@
 """Bluetooth protocol of GNLT EVE/EVB (AEFA) chargers.
 
-Port of ``apps/user-web/src/ble/protocol.ts`` - the same frames, the same
-checks. The TypeScript file is the source of truth and carries the history of
-every rule below; this module must stay pure (no Home Assistant, no bleak) so
+Port of the GNLT app's Bluetooth protocol - the same frames, the same
+checks. The app is the source of truth and carries the history of every rule
+below; this module must stay pure (no Home Assistant, no bleak) so
 it can be tested without hardware.
 
 Frame layout (both directions)::

@@ -41,6 +41,11 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
             "{name}: разъём станции отключён",
             "Станция сама заряжала и не приняла команду остановки, поэтому Home Assistant отключил разъём, чтобы остановить зарядку. Примерно через 10 минут разъём включится сам. Если не хотите, чтобы зарядка продолжилась, выньте кабель из машины.",
         ),
+        "faulted": (
+            "{name}: станция остановила зарядку",
+            "Станция сообщила: {error}. {cause}Чтобы продолжить, выньте кабель из машины и вставьте снова. "
+            "Если сообщение не исчезло, нажмите «Перезагрузить» на странице станции.",
+        ),
     },
     "pl": {
         "charging_without_session": (
@@ -65,6 +70,11 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
             "{name}: złącze ładowarki wyłączone",
             "Ładowarka ładowała samodzielnie i nie wykonała polecenia zatrzymania, dlatego Home Assistant wyłączył złącze, aby przerwać ładowanie. Za około 10 minut złącze włączy się ponownie samo. Jeśli nie chcesz, żeby ładowanie się wznowiło, odłącz kabel od samochodu.",
         ),
+        "faulted": (
+            "{name}: ładowarka zatrzymała ładowanie",
+            "Ładowarka zgłosiła: {error}. {cause}Aby wznowić ładowanie, odłącz kabel od samochodu i podłącz go ponownie. "
+            "Jeśli komunikat nie zniknie, naciśnij „Uruchom ponownie” na stronie ładowarki.",
+        ),
     },
     "en": {
         "charging_without_session": (
@@ -88,13 +98,86 @@ TEXTS: dict[str, dict[str, tuple[str, str]]] = {
             "{name}: the charger's connector is out of service",
             "The charger was charging by itself and refused the stop command, so Home Assistant took the connector out of service to stop the charge. It returns to service by itself in about 10 minutes. If you do not want the charge to go on, unplug the cable from the car.",
         ),
+        "faulted": (
+            "{name}: the charger stopped charging",
+            "The charger reported: {error}. {cause}To continue, unplug the cable from the car and plug it in again. "
+            'If the message stays, press "Restart" on the charger page.',
+        ),
     },
 }
+
+# What the charger reports (OCPP errorCode) and its most likely cause, as the
+# person can act on it. Codes without a known cause get only the general advice.
+ERRORS: dict[str, dict[str, tuple[str, str]]] = {
+    "ru": {
+        "OverCurrentFailure": (
+            "ток превысил допустимый",
+            "Обычно это значит, что машина взяла больше тока, чем разрешено. Некоторые машины не выполняют "
+            "отдельные значения ограничения тока (например, 11–15 А) и берут больше. Поставьте другое "
+            "«Ограничение тока» — например, 10 А или максимальное. ",
+        ),
+        "GroundFailure": (
+            "ошибка заземления или утечка тока",
+            "Проверьте заземление розетки или линии, к которой подключена станция; если повторяется — обратитесь к электрику. ",
+        ),
+        "OverVoltage": ("напряжение в сети выше нормы", "Зарядка возможна, когда напряжение вернётся в норму. "),
+        "UnderVoltage": ("напряжение в сети ниже нормы", "Зарядка возможна, когда напряжение вернётся в норму. "),
+        "HighTemperature": ("перегрев", "Дайте станции остыть; если повторяется — уменьшите «Ограничение тока». "),
+        "EVCommunicationError": ("нет связи с машиной по кабелю", "Проверьте, что разъём плотно вставлен в машину. "),
+    },
+    "pl": {
+        "OverCurrentFailure": (
+            "prąd powyżej limitu",
+            "Zwykle oznacza to, że samochód pobrał więcej prądu, niż było dozwolone. Niektóre samochody nie "
+            "respektują niektórych wartości limitu prądu (na przykład 11–15 A) i pobierają więcej. Ustaw inną "
+            "wartość „Limitu prądu” – na przykład 10 A albo maksymalną. ",
+        ),
+        "GroundFailure": (
+            "błąd uziemienia lub upływ prądu",
+            "Sprawdź uziemienie gniazda lub obwodu, do którego podłączona jest ładowarka; jeśli błąd się powtarza, skontaktuj się z elektrykiem. ",
+        ),
+        "OverVoltage": ("napięcie sieci powyżej normy", "Ładowanie będzie możliwe, gdy napięcie wróci do normy. "),
+        "UnderVoltage": ("napięcie sieci poniżej normy", "Ładowanie będzie możliwe, gdy napięcie wróci do normy. "),
+        "HighTemperature": ("przegrzanie", "Poczekaj, aż ładowarka ostygnie; jeśli to się powtarza, zmniejsz „Limit prądu”. "),
+        "EVCommunicationError": ("brak komunikacji z samochodem przez kabel", "Sprawdź, czy wtyczka jest dobrze włożona do gniazda w samochodzie. "),
+    },
+    "en": {
+        "OverCurrentFailure": (
+            "current above the limit",
+            "Usually this means the car took more current than allowed. Some cars do not follow certain current "
+            'limits (for example 11-15 A) and take more. Set a different "Current limit" - for example 10 A or '
+            "the maximum. ",
+        ),
+        "GroundFailure": (
+            "earth fault or leakage current",
+            "Check the earthing of the socket or the line the charger is connected to; if it repeats, call an electrician. ",
+        ),
+        "OverVoltage": ("mains voltage above normal", "Charging is possible again when the voltage is back to normal. "),
+        "UnderVoltage": ("mains voltage below normal", "Charging is possible again when the voltage is back to normal. "),
+        "HighTemperature": ("overheating", 'Let the charger cool down; if it repeats, lower the "Current limit". '),
+        "EVCommunicationError": ("no communication with the car over the cable", "Check that the plug is fully inserted in the car. "),
+    },
+}
+
+
+# A Faulted status without an error code.
+NO_CODE = {"ru": "ошибка", "pl": "błąd", "en": "an error"}
+
+
+def error_text(lang: str, charger: Charger) -> tuple[str, str]:
+    """(what the charger reported, its likely cause) in the notification language."""
+    code = charger.error_code or ""
+    name, cause = ERRORS[lang].get(code, (code or NO_CODE[lang], ""))
+    if charger.vendor_error:
+        name = f"{name} ({charger.vendor_error})"
+    return name, cause
+
 
 WATCHED: dict[str, Callable[[Charger], bool]] = {
     "charging_without_session": lambda c: c.charging_without_session,
     "empty_session": lambda c: c.empty_session,
     "out_of_service": lambda c: c.forced_inoperative_at is not None,
+    "faulted": lambda c: c.status == "Faulted",
 }
 
 # Events worth knowing about after they are over: when the flag goes off the
@@ -120,12 +203,18 @@ def watch(hass: HomeAssistant, charger: Charger, name: str) -> Callable[[], None
     """Raise and clear notifications as the charger's flags change."""
     shown: dict[str, bool] = {key: False for key in WATCHED}
     started: dict[str, str] = {}
+    fault_code: list[tuple[str | None, str | None]] = [(None, None)]
 
     @callback
     def on_update() -> None:
         lang = language_of(hass.config.language)
         for key, flag in WATCHED.items():
             now = flag(charger)
+            if key == "faulted" and now:
+                code = (charger.error_code, charger.vendor_error)
+                if shown[key] and code != fault_code[0]:
+                    shown[key] = False  # another error while still Faulted: show the new one
+                fault_code[0] = code
             if now == shown[key]:
                 continue
             shown[key] = now
@@ -134,6 +223,9 @@ def watch(hass: HomeAssistant, charger: Charger, name: str) -> Callable[[], None
             if now:
                 started[key] = clock
                 title, message = TEXTS[lang][key]
+                if key == "faulted":
+                    error, cause = error_text(lang, charger)
+                    message = message.format(error=error, cause=cause)
                 persistent_notification.async_create(
                     hass, message, title=title.format(name=name), notification_id=notification_id
                 )

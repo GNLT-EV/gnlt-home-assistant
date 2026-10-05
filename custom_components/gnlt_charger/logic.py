@@ -102,124 +102,496 @@ def station_timestamp(value: Any, now: datetime) -> datetime:
 
 # --- meter -------------------------------------------------------------------
 
-RESET_CONFIRM = timedelta(minutes=5)
+# Rules shared with the GNLT platform (agreed 04.10.2026; common scenarios in
+# tests/vectors.json). They are a chosen
+# heuristic, not a proof - an ambiguous choice is marked on the charge.
+# Only a drop below half of the peak can be a restart of the register; a smaller
+# one is a correction downwards and the peak stays.
+RESET_BELOW = 0.5
+# A low reading followed by a return above half of the peak within this time
+# is a false dip, not a restart.
+CONFIRM_WINDOW = timedelta(minutes=5)
+# "The register could have restarted and grown to this value in the time" -
+# rated power x (time + slack) x margin.
+POWER_MARGIN = 1.1
+TIME_SLACK_S = 60
+# Closed charges kept for late or repeated StopTransaction; older ones are
+# folded into the archived sum.
+KEEP_CHARGES = 5
+KEEP_UNRESOLVED = 10
+NO_FINAL = "ended without its final figure (yet)"
+
+
+def _iso(at: datetime | None) -> str | None:
+    return at.isoformat() if at else None
 
 
 @dataclass
-class EnergyCounter:
-    """Lifetime energy (Wh) built from the charger's register, blink-proof.
+class ChargeRecord:
+    """One charge as the charger counted it: register segments, its final
+    figure, and what of it was already published in the totals.
 
-    Streaming form of ``recovery.ts::meterIncrements`` of the GNLT platform -
-    ONE rule for what counts as energy. The charger's
-    ``Energy.Active.Import.Register`` restarts with every session and sometimes
-    BLINKS: a sample far below the peak, then back to normal. Taking every drop
-    as a reset counts the whole charge twice - that exact bug doubled a client's
-    bill on the platform (22.09.2026).
+    A segment is a stretch of one register count; a restart of the register in
+    the middle of the charge opens the next one. Energy = sum of the segments;
+    when no restart happened and the final figure came, it is the charger's own
+    ``meterStop - meterStart`` (owner's decision 04.10.2026: the charger's final
+    figure is what is recorded)."""
 
-    Rules:
-      * the reference is the PEAK of the current count, not the previous
-        sample, so a single dip does not shift the count;
-      * a drop is a reset only when the register stays below half of the peak
-        for five minutes - after a real reset even 22 kW cannot climb that far,
-        while a blink comes back with the very next sample;
-      * after a confirmed reset everything the new count gained is energy.
+    rid: int
+    number: int | None = None
+    started: str | None = None
+    open: bool = True
+    peak: float = 0.0
+    inc_wh: float = 0.0
+    correction_wh: float = 0.0
+    resets: int = 0
+    ambiguous: int = 0
+    reasons: list[str] = field(default_factory=list)
+    pending: float | None = None
+    pending_at: str | None = None
+    last_good_at: str | None = None
+    last_at: str | None = None
+    final: float | None = None
+    stopped_at: str | None = None
+    stop_raw: str | None = None
+    published_wh: float = 0.0
 
-    ``total_wh`` only grows, so it is safe for the Home Assistant energy
-    dashboard (``total_increasing``).
-    """
+    @property
+    def energy_wh(self) -> float:
+        return max(0.0, self.inc_wh - self.correction_wh)
 
-    total_wh: float = 0.0
-    peak_wh: float | None = None
-    dip_since: datetime | None = None
-    dip_peak_wh: float = 0.0
+    @property
+    def approximate(self) -> bool:
+        return bool(self.reasons) or (not self.open and self.final is None)
 
-    def start_session(self, meter_start_wh: float | None) -> None:
-        """StartTransaction gives an explicit new baseline."""
-        self.peak_wh = meter_start_wh
-        self.dip_since = None
-        self.dip_peak_wh = 0.0
-
-    def add(self, value_wh: float, at: datetime) -> float:
-        """Feed a register reading; returns the increment counted, Wh."""
-        if self.peak_wh is None:
-            self.peak_wh = value_wh
-            return 0.0
-        confirmed = 0.0
-        if self.dip_since is not None and at - self.dip_since > RESET_CONFIRM:
-            # The five-minute window closed with the register still low: the
-            # reset is real. This sample already belongs to the new count.
-            confirmed = self._confirm_reset()
-        peak = self.peak_wh
-
-        if value_wh >= peak:
-            gained = value_wh - peak
-            self.total_wh += gained  # `confirmed` is already in the total
-            self.peak_wh = value_wh
-            self.dip_since = None
-            self.dip_peak_wh = 0.0
-            return confirmed + gained
-
-        if value_wh >= peak / 2:
-            # Near the peak (the final reading of a session is often a few
-            # hundred Wh below the last sample), or back after a blink.
-            self.dip_since = None
-            self.dip_peak_wh = 0.0
-            return confirmed
-
-        # Far below the peak: a blink or a real reset - undecided until a
-        # sample outside the five-minute window (or the final reading) decides.
-        if self.dip_since is None:
-            self.dip_since = at
-            self.dip_peak_wh = value_wh
-        else:
-            self.dip_peak_wh = max(self.dip_peak_wh, value_wh)
-        return confirmed
-
-    def finish(self, value_wh: float | None, at: datetime) -> float:
-        """StopTransaction: the final reading is the LAST sample.
-
-        A dip still pending at the end has nothing after it to come back to -
-        the platform treats that as a confirmed reset, and so do we.
-        """
-        gained = self.add(value_wh, at) if value_wh is not None else 0.0
-        if self.dip_since is not None:
-            gained += self._confirm_reset()
-        return gained
-
-    def _confirm_reset(self) -> float:
-        gained = self.dip_peak_wh
-        self.total_wh += gained
-        self.peak_wh = self.dip_peak_wh
-        self.dip_since = None
-        self.dip_peak_wh = 0.0
-        return gained
+    def note(self, reason: str) -> None:
+        if reason not in self.reasons:
+            self.reasons.append(reason)
 
     def as_dict(self) -> dict[str, Any]:
-        return {"total_wh": self.total_wh}
+        return dict(self.__dict__)
 
     @classmethod
-    def from_dict(cls, data: dict[str, Any] | None) -> EnergyCounter:
-        return cls(total_wh=float((data or {}).get("total_wh", 0.0)))
+    def from_dict(cls, d: dict[str, Any]) -> ChargeRecord:
+        known = {k: d[k] for k in cls.__dataclass_fields__ if k in d}
+        return cls(**known)
+
+
+@dataclass
+class Delta:
+    """Energy to add to (or, for a correction, take from) the totals, and the
+    moment it belongs to - the reading it came with."""
+
+    wh: float
+    at: datetime | None
+    rid: int
+
+
+@dataclass
+class ChargeLedger:
+    """Energy (Wh) from the charger's own numbers.
+
+    * Every charge is a :class:`ChargeRecord`; ``total_wh`` is the sum of what
+      each record published - there is no carried-over "debt": a correction
+      belongs to its own charge and is taken back from the totals once.
+    * Readings grow the open charge live (estimate); the final figure of
+      ``StopTransaction`` goes through the same drop rules as a reading (the
+      GNLT platform feeds it as the last sample).
+    * Drops (shared with the platform): above half of the peak - a correction,
+      the peak stays; below half - a candidate restart. The next reading decides:
+      not below the peak -> false dip (ambiguous when a restart could have
+      grown to that value in the time); back above half within 5 minutes ->
+      false dip; still low and growing, or later -> the register restarted: a
+      new segment of the same charge.
+    * A charge the charger started by itself begins at 0 when the charger is
+      known to count every charge from zero (its own ``meterStart`` = 0), at the
+      idle register when it is known to count on; unknown -> the old guess,
+      marked approximate.
+    * A StopTransaction is matched to its charge by number; without a number by
+      the readings (and, to break a tie, by time). Two candidates that both fit
+      -> nothing is changed, the stop is kept for the diagnostics file.
+    """
+
+    archived_wh: float = 0.0
+    records: list[ChargeRecord] = field(default_factory=list)
+    last_register: float | None = None
+    zero_starts: int = 0
+    nonzero_starts: int = 0
+    unresolved: list[dict[str, Any]] = field(default_factory=list)
+    next_rid: int = 1
+    # Runtime only: how the last StopTransaction was taken - "matched",
+    # "duplicate", "unresolved" (fits two charges or a lost one: nothing
+    # changed) or "none" (no charge at all).
+    last_stop: str = "none"
+    # Runtime only: rated power of the charger (A x phases x 230 V), for the
+    # "could the register have restarted" test. None -> every such case is
+    # ambiguous.
+    max_power_w: float | None = None
+
+    # --- views ----------------------------------------------------------------
+
+    @property
+    def total_wh(self) -> float:
+        return self.archived_wh + sum(r.published_wh for r in self.records)
+
+    @property
+    def open_record(self) -> ChargeRecord | None:
+        return next((r for r in reversed(self.records) if r.open), None)
+
+    @property
+    def last_record(self) -> ChargeRecord | None:
+        return self.records[-1] if self.records else None
+
+    @property
+    def is_open(self) -> bool:
+        return self.open_record is not None
+
+    @property
+    def session_wh(self) -> float | None:
+        r = self.last_record
+        return None if r is None else r.energy_wh
+
+    @property
+    def register_mode(self) -> str:
+        """"zero" - counts every charge from 0; "cumulative"; "unknown"."""
+        if self.zero_starts and not self.nonzero_starts:
+            return "zero"
+        if self.nonzero_starts and not self.zero_starts:
+            return "cumulative"
+        return "unknown"
+
+    # --- events ---------------------------------------------------------------
+
+    def start(self, meter_start: float | None, number: int | None, at: datetime) -> list[Delta]:
+        """StartTransaction: a new charge from ``meterStart``."""
+        deltas = self.close_open(at)
+        base = meter_start if meter_start is not None else 0.0
+        if meter_start is not None:
+            if meter_start == 0:
+                self.zero_starts += 1
+            else:
+                self.nonzero_starts += 1
+        self._open(number, base, at)
+        return deltas
+
+    def reading(self, value: float, charging: bool, at: datetime) -> list[Delta]:
+        """A register reading."""
+        r = self.open_record
+        if r is None:
+            if not charging or self._idle_register(value):
+                # Idle: the register holds the last charge's value - also while
+                # the status still says Charging after StopTransaction (a second
+                # normally, minutes after an emergency stop; review 5).
+                self.last_register = value
+                return []
+            r = self._open(None, self._own_start_base(value), at)
+            if self.register_mode == "unknown":
+                r.note("register mode unknown: start of a charge the charger began by itself guessed")
+        self.last_register = value
+        self._point(r, value, at, final=False)
+        r.last_at = _iso(at)
+        return self._publish(r, at)
+
+    def stop(
+        self, meter_stop: float | None, number: int | None, at: datetime, raw: str | None = None
+    ) -> tuple[list[Delta], ChargeRecord | None]:
+        """StopTransaction. Returns the deltas and the charge it closed (None
+        when it could not be matched - then nothing changed); how it was taken
+        is in ``last_stop``. ``raw`` is the timestamp string of the frame: a
+        retry carries the same string even when the time was replaced (clock
+        ahead)."""
+        r = self._match_stop(meter_stop, number, at, raw)
+        if r is None:
+            return [], None
+        if r.final is not None and not r.open:
+            self.last_stop = "duplicate"
+            return [], r  # a repeated stop: already settled
+        self.last_stop = "matched"
+        if meter_stop is not None:
+            self.last_register = meter_stop
+            self._point(r, meter_stop, at, final=True)
+            r.final = meter_stop
+            r.stopped_at = _iso(at)
+            r.stop_raw = raw
+            if NO_FINAL in r.reasons:
+                r.reasons.remove(NO_FINAL)
+        elif r.open:
+            r.note(NO_FINAL)
+        r.open = False
+        r.pending = None
+        # A correction downwards belongs to the last reading (a chosen policy:
+        # the final figure does not say when the difference arose); energy
+        # after it - to the moment of the final figure.
+        when = (parse_ts(r.last_at) or at) if r.energy_wh < r.published_wh else at
+        deltas = self._publish(r, when)
+        self._prune()
+        return deltas, r
+
+    def close_open(self, at: datetime) -> list[Delta]:
+        """The open charge ended without its final figure (yet): its estimate
+        stands until a late StopTransaction replaces it."""
+        r = self.open_record
+        if r is None:
+            return []
+        r.open = False
+        r.pending = None
+        r.note(NO_FINAL)
+        self._prune()
+        return []
+
+    # --- internals ------------------------------------------------------------
+
+    def _open(self, number: int | None, base: float, at: datetime) -> ChargeRecord:
+        r = ChargeRecord(rid=self.next_rid, number=number, started=_iso(at), peak=base)
+        self.next_rid += 1
+        self.records.append(r)
+        return r
+
+    def _idle_register(self, value: float) -> bool:
+        """The value is the register of the charge that just ended: between its
+        final figure and its peak (a final below the last reading), with 1 Wh
+        for kWh rounding."""
+        last = self.last_record
+        if last is None or last.open or last.final is None:
+            return False
+        low, high = sorted((last.final, last.peak))
+        return low - 1 <= value <= high + 1
+
+    def _own_start_base(self, value: float) -> float:
+        mode = self.register_mode
+        last = self.last_register
+        if mode == "zero" or last is None:
+            return 0.0
+        if mode == "cumulative":
+            return last if value >= last else 0.0
+        return last if value >= last else 0.0
+
+    def _could_restart_to(self, value: float, since: datetime | None, at: datetime) -> bool:
+        """Could a restarted register have grown to ``value`` by ``at``?"""
+        if self.max_power_w is None or since is None:
+            return True
+        seconds = max(0.0, (at - since).total_seconds()) + TIME_SLACK_S
+        return value <= self.max_power_w * seconds / 3600 * POWER_MARGIN
+
+    def _point(self, r: ChargeRecord, v: float, at: datetime, final: bool) -> None:
+        """One value of the register, a reading or the final figure."""
+        half = RESET_BELOW * r.peak
+        if r.pending is None:
+            if v >= r.peak:
+                r.inc_wh += v - r.peak
+                r.peak = v
+                r.last_good_at = _iso(at)
+            elif v >= half:
+                if final:
+                    r.correction_wh = r.peak - v
+            elif final:
+                self._restart(r, v)
+            else:
+                r.pending, r.pending_at = v, _iso(at)
+            return
+        dropped_at = parse_ts(r.pending_at) or at
+        if v >= r.peak:
+            if self._could_restart_to(v, parse_ts(r.last_good_at), at):
+                r.ambiguous += 1
+                r.note("register dip: a restart was possible too")
+            r.inc_wh += v - r.peak
+            r.peak = v
+            r.last_good_at = _iso(at)
+            r.pending = None
+        elif v >= half:
+            if at - dropped_at <= CONFIRM_WINDOW:
+                if final:
+                    r.correction_wh = r.peak - v
+                r.pending = None
+            else:
+                self._restart(r, v)
+        elif v > r.pending or final or at - dropped_at > CONFIRM_WINDOW:
+            self._restart(r, v)
+        # else: still low and not growing - keep waiting
+
+    def _restart(self, r: ChargeRecord, v: float) -> None:
+        """The register restarted: a new segment, counted from 0."""
+        r.resets += 1
+        r.inc_wh += v
+        r.peak = v
+        r.correction_wh = 0.0
+        r.pending = None
+
+    def _publish(self, r: ChargeRecord, at: datetime) -> list[Delta]:
+        delta = r.energy_wh - r.published_wh
+        if abs(delta) < 1e-9:
+            return []
+        r.published_wh += delta
+        return [Delta(delta, at, r.rid)]
+
+    def _fits(self, r: ChargeRecord, v: float, at: datetime) -> bool:
+        """The final figure fits the charge without assuming a restart."""
+        if v < RESET_BELOW * r.peak:
+            return False
+        if v <= r.peak:
+            return True
+        return self._could_restart_to(v - r.peak, parse_ts(r.last_at), at)
+
+    def _match_stop(
+        self, v: float | None, number: int | None, at: datetime, raw: str | None
+    ) -> ChargeRecord | None:
+        for r in reversed(self.records):
+            # The same StopTransaction again (a retry after a reconnect): same
+            # figure and the same timestamp string (or moment).
+            same_time = r.stop_raw == raw if raw is not None and r.stop_raw is not None else r.stopped_at == _iso(at)
+            if r.final is not None and r.final == v and same_time and number in (None, r.number):
+                return r
+        open_r = self.open_record
+        # An unknown start (a charge carried over from the old storage format
+        # without its session) proves nothing either way (platform review,
+        # 04.10.2026).
+        started = parse_ts(open_r.started) if open_r is not None else None
+        open_began_before = started is not None and at >= started - timedelta(seconds=5)
+        open_began_after = started is not None and at < started - timedelta(seconds=5)
+        if number is not None:
+            found = next((r for r in reversed(self.records) if r.number == number), None)
+            if found is not None and found is open_r:
+                return found
+            if open_r is not None and open_began_before:
+                # The charger runs its only charge under the number of an
+                # EARLIER session (partner's bench 25.09.2026), and the stop is
+                # stamped inside the open charge: it is the open one.
+                return open_r
+            if found is not None:
+                return found  # a late stop of an earlier charge
+            if open_r is not None:
+                return self._unresolved(v, number, at)
+            # A number HA never gave (the charger's own charge carries its own
+            # number in MeterValues): matched like a stop without a number.
+        waiting = [r for r in reversed(self.records) if not r.open and r.final is None]
+        candidates = ([open_r] if open_r else []) + waiting
+        if not candidates:
+            self.last_stop = "none"
+            return None
+        if len(candidates) == 1:
+            return candidates[0]
+        if v is not None:
+            fitting = [r for r in candidates if self._fits(r, v, at)]
+            if len(fitting) > 1 and open_r in fitting and open_began_after:
+                # Time as a tie-breaker only: it ended before the open one began.
+                fitting.remove(open_r)
+            if len(fitting) == 1:
+                return fitting[0]
+        return self._unresolved(v, number, at)
+
+    def _unresolved(self, v: float | None, number: int | None, at: datetime) -> None:
+        self.last_stop = "unresolved"
+        self.unresolved.append({"at": _iso(at), "number": number, "meter_stop": v})
+        del self.unresolved[:-KEEP_UNRESOLVED]
+        return None
+
+    def _prune(self) -> None:
+        closed = [r for r in self.records if not r.open]
+        for r in closed[:-KEEP_CHARGES]:
+            self.archived_wh += r.published_wh
+            self.records.remove(r)
+
+    # --- storage --------------------------------------------------------------
+
+    def as_dict(self) -> dict[str, Any]:
+        return {
+            "version": 2,
+            "archived_wh": self.archived_wh,
+            "records": [r.as_dict() for r in self.records],
+            "last_register": self.last_register,
+            "zero_starts": self.zero_starts,
+            "nonzero_starts": self.nonzero_starts,
+            "unresolved": list(self.unresolved),
+            "next_rid": self.next_rid,
+            "total_wh": self.total_wh,
+            "register_mode": self.register_mode,
+        }
+
+    @classmethod
+    def from_dict(cls, data: dict[str, Any] | None) -> ChargeLedger:
+        data = data or {}
+
+        def num(key: str) -> float | None:
+            v = data.get(key)
+            return float(v) if isinstance(v, (int, float)) and not isinstance(v, bool) else None
+
+        if data.get("version") == 2:
+            return cls(
+                archived_wh=num("archived_wh") or 0.0,
+                records=[ChargeRecord.from_dict(r) for r in data.get("records") or [] if isinstance(r, dict)],
+                last_register=num("last_register"),
+                zero_starts=int(data.get("zero_starts") or 0),
+                nonzero_starts=int(data.get("nonzero_starts") or 0),
+                unresolved=[u for u in data.get("unresolved") or [] if isinstance(u, dict)],
+                next_rid=int(data.get("next_rid") or 1),
+            )
+        # 0.2.8 / early 0.2.9 kept a total (and an open charge): nothing is
+        # lost or counted again.
+        total = num("total_wh") or 0.0
+        led = cls(archived_wh=total, last_register=num("last_register"))
+        base = num("open_base")
+        if base is not None:
+            open_wh = num("open_wh") or 0.0
+            last = num("open_last")
+            r = led._open(None, base, datetime.now(UTC))
+            r.started = None  # unknown - a late stop must still find it
+            r.inc_wh = open_wh
+            r.published_wh = open_wh
+            r.peak = last if last is not None else base + open_wh
+            led.archived_wh = max(0.0, total - open_wh)
+        return led
+
+
+ENERGY = "Energy.Active.Import.Register"
+POWER = "Power.Active.Import"
+
+
+def _phase(raw: Any) -> str | None:
+    """OCPP phase -> "L1" / "L2" / "L3"; None for a line-to-line or neutral value.
+
+    No phase means L1 for current and voltage (one-phase chargers omit it).
+    "L1-N" is L1; "L1-L2" (400 V between phases) and "N" are not a phase of
+    their own and must not overwrite L1.
+    """
+    if raw in (None, ""):
+        return "L1"
+    text = str(raw)
+    if text in ("L1", "L2", "L3"):
+        return text
+    if len(text) == 4 and text[:2] in ("L1", "L2", "L3") and text[2:] == "-N":
+        return text[:2]
+    return None
+
+
+def _value(s: dict[str, Any]) -> float | None:
+    try:
+        return float(s.get("value"))
+    except (TypeError, ValueError):
+        return None
+
+
+def _total(whole: float | None, phases: dict[str, float]) -> float | None:
+    """A value without a phase is the whole; without it the phases add up.
+
+    Three-phase firmware may send power and energy per phase only: taking the
+    last sample showed one third of the real power (04.10.2026).
+    """
+    if whole is not None:
+        return whole
+    return sum(phases.values()) if phases else None
 
 
 def energy_wh(samples: Any) -> float | None:
     """Energy register from a sampledValue list, in Wh."""
-    for s in samples if isinstance(samples, list) else []:
-        if not isinstance(s, dict):
-            continue
-        if s.get("measurand", "Energy.Active.Import.Register") != "Energy.Active.Import.Register":
-            continue
-        try:
-            v = float(s.get("value"))
-        except (TypeError, ValueError):
-            continue
-        return v * 1000 if s.get("unit", "Wh") == "kWh" else v
-    return None
+    return extract_metrics(samples).energy_wh
 
 
 @dataclass
 class Metrics:
     power_w: float | None = None
+    # Power came per phase (summed into power_w), and the power factor if sent.
+    power_per_phase: bool = False
+    power_factor: float | None = None
     current: dict[str, float] = field(default_factory=dict)
     voltage: dict[str, float] = field(default_factory=dict)
     temperature: float | None = None
@@ -232,29 +604,94 @@ def extract_metrics(samples: Any) -> Metrics:
     body temperature. ``SoC = 0`` means "no data" (DC chargers send zero before
     the car talks to them), never "empty battery"."""
     m = Metrics()
+    power: float | None = None
+    power_ph: dict[str, float] = {}
+    energy: float | None = None
+    energy_ph: dict[str, float] = {}
     for s in samples if isinstance(samples, list) else []:
         if not isinstance(s, dict):
             continue
-        measurand = s.get("measurand", "Energy.Active.Import.Register")
-        try:
-            v = float(s.get("value"))
-        except (TypeError, ValueError):
+        v = _value(s)
+        if v is None:
             continue
+        measurand = s.get("measurand", ENERGY)
         unit = s.get("unit")
-        phase = str(s.get("phase") or "L1")[:2]
-        if measurand == "Energy.Active.Import.Register":
-            m.energy_wh = v * 1000 if unit == "kWh" else v
-        elif measurand == "Power.Active.Import":
-            m.power_w = v * 1000 if unit == "kW" else v
-        elif measurand == "Current.Import":
+        tagged = s.get("phase") not in (None, "")
+        phase = _phase(s.get("phase"))
+        if measurand == ENERGY:
+            wh = v * 1000 if unit == "kWh" else v
+            if not tagged:
+                energy = wh
+            elif phase:
+                energy_ph[phase] = wh
+        elif measurand == POWER:
+            w = v * 1000 if unit == "kW" else v
+            if not tagged:
+                power = w
+            elif phase:
+                power_ph[phase] = w
+        elif measurand == "Power.Factor":
+            m.power_factor = v
+        elif measurand == "Current.Import" and phase:
             m.current[phase] = v
-        elif measurand == "Voltage":
+        elif measurand == "Voltage" and phase:
             m.voltage[phase] = v
         elif measurand == "Temperature":
             m.temperature = v
         elif measurand == "SoC" and v > 0:
             m.soc = v
+    m.power_w = _total(power, power_ph)
+    m.power_per_phase = power is None and bool(power_ph)
+    m.energy_wh = _total(energy, energy_ph)
     return m
+
+
+# Firmware whose phase-less power is, on three phases, the power of ONE phase:
+# the register agrees with the integral of the sum of U x I (1.00) and not with
+# the integral of the reported power (0.33) - GNLT platform data, 450 of 584
+# three-phase readings, 04.10.2026. SW:A3B_2.7-HW:B07_0.4 - live three-phase
+# charge, 06.10.2026: reported 3400-3500 W at a sum of U x I of 10.2-10.4 kW
+# (0.33-0.34), register 0.99 of it, the charger's own screen 10.5 kW. Only an
+# exact match; other firmware is not assumed to behave the same.
+ONE_PHASE_POWER_PROFILES = frozenset({"SW:A3B_3.1-HW:B07_0.5", "SW:A3B_2.7-HW:B07_0.4"})
+
+
+def apparent_power_va(voltage: dict[str, float], current: dict[str, float]) -> float:
+    """Sum of U x I of the phases (VA). A charger that sends one voltage (no
+    phase = L1) for all phases: that voltage is used for each."""
+    common = voltage.get("L1", 0.0)
+    return sum((voltage.get(ph) or common) * a for ph, a in current.items())
+
+
+def one_phase_power_fix(
+    power_w: float,
+    voltage: dict[str, float],
+    current: dict[str, float],
+    per_phase_power: bool,
+    power_factor: float | None,
+    profile_confirmed: bool,
+) -> float:
+    """Power to show: the charger's figure, except for a confirmed profile that
+    reports one phase of several - then the sum of U x I of the phases with
+    current (a calculated estimate, the same rule as the GNLT platform).
+
+    Never without the profile: an unknown power factor is not 1 (6 000 W of
+    11 040 VA is a valid reading)."""
+    if not profile_confirmed or per_phase_power or power_factor is not None:
+        return power_w
+    loaded = {
+        ph: voltage.get(ph, 0.0) * a
+        for ph, a in current.items()
+        if a > 1.0 and voltage.get(ph, 0.0) > 100.0
+    }
+    if len(loaded) < 2:
+        return power_w
+    total = sum(loaded.values())
+    if total < 500 or power_w >= 0.75 * total:
+        return power_w
+    if not any(abs(power_w - va) <= 0.1 * va for va in loaded.values()):
+        return power_w
+    return total
 
 
 # --- connector status ----------------------------------------------------------
@@ -322,7 +759,7 @@ def clamp_current(amps: float, max_a: int) -> int:
 
 # --- schedule, tariff, statistics ------------------------------------------------
 #
-# Same rules as the GNLT platform (``scheduler.ts``, ``billing.ts::priceAt``):
+# Same rules as the GNLT platform:
 #   * a window is given in minutes of the local day; ``end <= start`` means it
 #     crosses midnight and ends the next day; the day filter applies to the day
 #     the window STARTS;
@@ -419,15 +856,54 @@ class Totals:
     month_wh: float = 0.0
     month_cost: float = 0.0
     month_sessions: int = 0
+    # The current day / month began from zero while this version counted it.
+    # Only such a period is announced to Home Assistant as a cycle with its
+    # start (last_reset): Home Assistant counts the whole value of a NEW cycle
+    # as consumed since that start (sensor/recorder.py, compile_statistics), so
+    # announcing the running day's start in the middle of the day - at an
+    # update from 0.2.8, when the day's energy was already counted - counted it
+    # twice (stand, 04.10.2026: +19.99 kWh). A period not seen from zero goes on
+    # as the cycle Home Assistant already has.
+    day_from_zero: bool = False
+    month_from_zero: bool = False
 
     def roll(self, local: datetime) -> None:
         day, month = local.strftime("%Y-%m-%d"), local.strftime("%Y-%m")
+        if self.day and day < self.day:
+            # Never back: a reading stamped up to a minute ahead may roll the
+            # day first, and Home Assistant's own clock comes a moment later
+            # (review 5, M1: the new day was zeroed back to yesterday).
+            return
         if day != self.day:
             self.day, self.day_wh, self.day_cost = day, 0.0, 0.0
+            self.day_from_zero = True
         if month != self.month:
             self.month, self.month_wh, self.month_cost, self.month_sessions = month, 0.0, 0.0, 0
+            self.month_from_zero = True
+
+    def start_of(self, what: str, tz_name: str, announced_only: bool) -> datetime | None:
+        """Local start of the day / month the counters belong to - not of
+        "now": in the first moments after midnight, before the counters roll,
+        the value still belongs to yesterday. ``announced_only``: None for a
+        period not seen from zero (see day_from_zero)."""
+        if what == "day":
+            text, fmt, seen = self.day, "%Y-%m-%d", self.day_from_zero
+        else:
+            text, fmt, seen = self.month, "%Y-%m", self.month_from_zero
+        if not text or (announced_only and not seen):
+            return None
+        return datetime.strptime(text, fmt).replace(tzinfo=ZoneInfo(tz_name))
 
     def add(self, wh: float, cost: float, local: datetime) -> None:
+        """Energy and money at a local moment. A moment of a day already rolled
+        over (a late correction, a back-filled reading) counts in its month if
+        that month is still the current one - the totals never roll back."""
+        day, month = local.strftime("%Y-%m-%d"), local.strftime("%Y-%m")
+        if self.day and day < self.day:
+            if month == self.month:
+                self.month_wh += wh
+                self.month_cost += cost
+            return
         self.roll(local)
         self.day_wh += wh
         self.day_cost += cost

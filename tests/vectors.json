@@ -1,0 +1,1000 @@
+{
+  "format": 1,
+  "note": "Shared test scenarios; every expected value is derived by hand (reading by reading), not by running the implementation.",
+  "scenarios": [
+    {
+      "basis": "expectation derived by hand",
+      "id": "normal",
+      "about": "обычная зарядка: приросты подряд",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 100,
+          "sec": 0
+        },
+        {
+          "wh": 300,
+          "sec": 60
+        },
+        {
+          "wh": 600,
+          "sec": 120
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          100,
+          200,
+          300
+        ],
+        "total_wh": 600,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "tail-to-final",
+      "about": "хвост от последнего замера до итога станции",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 100,
+          "sec": 0
+        },
+        {
+          "wh": 300,
+          "sec": 60
+        },
+        {
+          "wh": 450,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          100,
+          200,
+          150
+        ],
+        "total_wh": 450,
+        "ambiguous": 0,
+        "session_energy_wh": 450
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "reset-mid-charge",
+      "about": "сброс посреди зарядки (65 530 → перезагрузка → 4 234), замеры после перезагрузки есть",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 20000,
+          "sec": 0
+        },
+        {
+          "wh": 65530,
+          "sec": 60
+        },
+        {
+          "wh": 4,
+          "sec": 120
+        },
+        {
+          "wh": 4234,
+          "sec": 180
+        },
+        {
+          "wh": 4234,
+          "sec": 180,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          20000,
+          45530,
+          4,
+          4230
+        ],
+        "total_wh": 69764,
+        "ambiguous": 0,
+        "session_energy_wh": 69764
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "reset-no-readings-after",
+      "about": "сброс, после перезагрузки замеров нет — только итог станции",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 20000,
+          "sec": 0
+        },
+        {
+          "wh": 40000,
+          "sec": 60
+        },
+        {
+          "wh": 65530,
+          "sec": 120
+        },
+        {
+          "wh": 4234,
+          "sec": 120,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          20000,
+          20000,
+          25530,
+          4234
+        ],
+        "total_wh": 69764,
+        "ambiguous": 0,
+        "session_energy_wh": 69764
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "single-dip-returns",
+      "about": "одиночный провал и возврат на следующем замере",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 26370,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 26370,
+          "sec": 120
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          26370
+        ],
+        "total_wh": 26370,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "zero-last-sample",
+      "about": "нулевой замер последним, итог станции на уровне пика",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 26370,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 26370,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          26370
+        ],
+        "total_wh": 26370,
+        "ambiguous": 0,
+        "session_energy_wh": 26370
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "final-slightly-below-peak",
+      "about": "итог станции чуть ниже пикового замера (поправка вниз, не сброс)",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 22610,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 22450,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          22610
+        ],
+        "total_wh": 22610,
+        "ambiguous": 0,
+        "session_energy_wh": 22610
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "double-dip-at-end",
+      "about": "несколько провалов подряд в конце",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 22610,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 0,
+          "sec": 120
+        },
+        {
+          "wh": 22450,
+          "sec": 120,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          22610
+        ],
+        "total_wh": 22610,
+        "ambiguous": 0,
+        "session_energy_wh": 22610
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "small-drop-above-half",
+      "about": "падение меньше половины пика — поправка вниз, опора не меняется",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 10000,
+          "sec": 0
+        },
+        {
+          "wh": 9930,
+          "sec": 60
+        },
+        {
+          "wh": 12000,
+          "sec": 120
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          10000,
+          2000
+        ],
+        "total_wh": 12000,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "nonzero-start",
+      "about": "счётчик не с нуля: начало сессии вычитается",
+      "start_wh": 5000,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 5200,
+          "sec": 0
+        },
+        {
+          "wh": 5600,
+          "sec": 60
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          200,
+          400
+        ],
+        "total_wh": 600,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "false-zero-gap-6min-11kw",
+      "about": "1000 → 0 → (6 мин) → 1100 при 11 кВт: оба объяснения возможны",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 1000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 1100,
+          "sec": 420
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          1000,
+          100
+        ],
+        "total_wh": 1100,
+        "ambiguous": 1,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "false-zero-1min-11kw",
+      "about": "1000 → 0 → 1100 за минуту при 11 кВт: сброс физически невозможен",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 1000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 10
+        },
+        {
+          "wh": 1100,
+          "sec": 70
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          1000,
+          100
+        ],
+        "total_wh": 1100,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "false-zero-65s-11kw",
+      "about": "100 → 0 → 200 за 65 секунд при 11 кВт: оба объяснения возможны (пример ChatGPT Димы)",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 100,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 10
+        },
+        {
+          "wh": 200,
+          "sec": 66
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          100,
+          100
+        ],
+        "total_wh": 200,
+        "ambiguous": 1,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "false-zero-unknown-power",
+      "about": "мощность неизвестна — неоднозначно",
+      "start_wh": 0,
+      "max_power_w": null,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 1000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 1100,
+          "sec": 120
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          1000,
+          100
+        ],
+        "total_wh": 1100,
+        "ambiguous": 1,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "big-peak-3h-22kw",
+      "about": "30 → 0 → 35 кВт·ч за 3 часа при 22 кВт: возможен сброс",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 30000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 35000,
+          "sec": 10860
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          30000,
+          5000
+        ],
+        "total_wh": 35000,
+        "ambiguous": 1,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "big-peak-11min-22kw",
+      "about": "30 → 0 → 35 кВт·ч за 11 минут при 22 кВт: сброс невозможен",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 30000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 35000,
+          "sec": 660
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          30000,
+          5000
+        ],
+        "total_wh": 35000,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "real-reset-long-silence",
+      "about": "настоящий сброс, после которого станция молчала час и вернулась ниже пика",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 20000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 3000,
+          "sec": 3660
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          20000,
+          3000
+        ],
+        "total_wh": 23000,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "between-half-and-peak-after-pause",
+      "about": "после падения возврат ниже пика, но выше половины, спустя 30 минут: решает окно по времени",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 10000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 6000,
+          "sec": 1800
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          10000,
+          6000
+        ],
+        "total_wh": 16000,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "correction-down-70wh",
+      "about": "итог станции на 70 Вт·ч ниже пика (поправка до 100 Вт·ч): энергия зарядки — итог станции",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 22520,
+          "sec": 0
+        },
+        {
+          "wh": 22450,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          22520
+        ],
+        "total_wh": 22520,
+        "ambiguous": 0,
+        "session_energy_wh": 22450
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "correction-down-340wh",
+      "about": "итог станции на 340 Вт·ч ниже пика (больше 100 Вт·ч): энергия зарядки — сумма приростов, а не итог станции",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 40720,
+          "sec": 0
+        },
+        {
+          "wh": 40380,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          40720
+        ],
+        "total_wh": 40720,
+        "ambiguous": 0,
+        "session_energy_wh": 40720
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "final-arrives-late",
+      "about": "итог станции приходит позже метки последнего замера (finalAtSec), пауза считается до прихода итога",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": 420,
+      "points": [
+        {
+          "wh": 1000,
+          "sec": 0
+        },
+        {
+          "wh": 0,
+          "sec": 60
+        },
+        {
+          "wh": 1100,
+          "sec": 60,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          1000,
+          100
+        ],
+        "total_wh": 1100,
+        "ambiguous": 1,
+        "session_energy_wh": 1100
+      }
+    }
+  ],
+  "power_scenarios": [
+    {
+      "id": "three-phase-station-reports-one-phase",
+      "about": "подтверждённый профиль, три фазы с током, станция прислала мощность одной фазы (2 100 при 6 279 ВА): подставляем ΣU·I",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "hand_w": 6279,
+      "expected": {
+        "active_power_w": 6279
+      }
+    },
+    {
+      "id": "unconfirmed-profile-no-correction",
+      "about": "тот же кадр на неподтверждённой прошивке: мощность как прислала станция",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "profile_confirmed": false,
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "three-phase-power-already-correct",
+      "about": "три фазы, мощность уже верная (6 270 при 6 279 ВА) — не трогаем",
+      "power_w": 6270,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "hand_w": 6270,
+      "expected": {
+        "active_power_w": 6270
+      }
+    },
+    {
+      "id": "only-one-phase-has-current",
+      "about": "кадры станции партнёра: L2/L3 — 0 В и 0 А, мощность совпадает с U·I на L1 — не трогаем",
+      "power_w": 2100,
+      "voltage_v": [
+        236,
+        0,
+        0
+      ],
+      "current_a": [
+        9.1,
+        0,
+        0
+      ],
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "idle-phases-show-1v",
+      "about": "однофазная зарядка, на L2/L3 шум 1 В — не трогаем",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        1,
+        1
+      ],
+      "current_a": [
+        9.1,
+        0,
+        0
+      ],
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "mismatch-not-one-phase",
+      "about": "1 200 Вт при 2 093 ВА на фазу: число не похоже на мощность одной фазы — станцию не домысливаем",
+      "power_w": 1200,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "hand_w": 1200,
+      "expected": {
+        "active_power_w": 1200
+      }
+    },
+    {
+      "id": "chatgpt-6000w-of-11040va",
+      "about": "контрпример ChatGPT Димы: 6 000 Вт при 11 040 ВА без PF (PF ≈ 0,54) — активная мощность верна, не подменяем",
+      "power_w": 6000,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        16,
+        16,
+        16
+      ],
+      "hand_w": 6000,
+      "expected": {
+        "active_power_w": 6000
+      }
+    },
+    {
+      "id": "chatgpt-8000w-of-11040va",
+      "about": "то же, 8 000 Вт (PF ≈ 0,72) — не подменяем",
+      "power_w": 8000,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        16,
+        16,
+        16
+      ],
+      "hand_w": 8000,
+      "expected": {
+        "active_power_w": 8000
+      }
+    },
+    {
+      "id": "low-apparent-power",
+      "about": "меньше 500 ВА по U·I — не проверяем",
+      "power_w": 100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        1.5,
+        1.5,
+        1.5
+      ],
+      "hand_w": 100,
+      "expected": {
+        "active_power_w": 100
+      }
+    },
+    {
+      "id": "two-phases-with-current",
+      "about": "две фазы с током: ΣU·I по двум фазам (2 × 2 093 = 4 186)",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        0
+      ],
+      "hand_w": 4186,
+      "expected": {
+        "active_power_w": 4186
+      }
+    },
+    {
+      "id": "zero-power",
+      "about": "нулевая мощность — не трогаем",
+      "power_w": 0,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9,
+        9,
+        9
+      ],
+      "hand_w": 0,
+      "expected": {
+        "active_power_w": 0
+      }
+    },
+    {
+      "id": "explicit-phase-powers-low-pf",
+      "about": "станция прислала мощность ПО ФАЗАМ (3 × 700 Вт) и PF = 1/3: итог 2 100 уже верный (контрпример ChatGPT Димы)",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "explicit_phase_power": true,
+      "power_factor": 0.333,
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "known-low-power-factor",
+      "about": "известный PF 0,333 в кадре — не подменяем",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "power_factor": 0.333,
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "any-power-factor-blocks",
+      "about": "любой PF в кадре (даже 0,99) — подмены нет: известный коэффициент ≠ единица, а его отсутствие не равно единице",
+      "power_w": 2100,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        9.1,
+        9.1,
+        9.1
+      ],
+      "power_factor": 0.99,
+      "hand_w": 2100,
+      "expected": {
+        "active_power_w": 2100
+      }
+    },
+    {
+      "id": "asymmetric-phases-20-5-5-one-phase",
+      "about": "несимметричная нагрузка 20/5/5 А, станция назвала мощностью L1 (4 600): подставляем сумму 6 900",
+      "power_w": 4600,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        20,
+        5,
+        5
+      ],
+      "hand_w": 6900,
+      "expected": {
+        "active_power_w": 6900
+      }
+    },
+    {
+      "id": "asymmetric-phases-not-one-phase",
+      "about": "несимметрия 20/5/5 А, мощность 2 300 (= ΣU·I / 3, не равна ни одной фазе) — не трогаем",
+      "power_w": 2300,
+      "voltage_v": [
+        230,
+        230,
+        230
+      ],
+      "current_a": [
+        20,
+        5,
+        5
+      ],
+      "hand_w": 2300,
+      "expected": {
+        "active_power_w": 2300
+      }
+    },
+    {
+      "id": "slight-asymmetry-verified-station",
+      "about": "лёгкая асимметрия как у проверенной станции (14,6/14,9/14,9 А): подставляем сумму 10 301",
+      "power_w": 3430,
+      "voltage_v": [
+        232,
+        232,
+        232
+      ],
+      "current_a": [
+        14.6,
+        14.9,
+        14.9
+      ],
+      "hand_w": 10301,
+      "expected": {
+        "active_power_w": 10301
+      }
+    }
+  ]
+}

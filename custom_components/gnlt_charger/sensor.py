@@ -15,6 +15,7 @@ from homeassistant.components.sensor import (
 )
 from homeassistant.const import (
     EntityCategory,
+    UnitOfApparentPower,
     UnitOfElectricCurrent,
     UnitOfElectricPotential,
     UnitOfEnergy,
@@ -27,6 +28,7 @@ from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 from . import GnltConfigEntry
 from .charger import Charger
 from .const import OCPP_ERRORS, OCPP_STATUSES
+from .logic import apparent_power_va
 from .entity import GnltEntity
 
 
@@ -54,17 +56,43 @@ def _money(c: Charger, value: float) -> float | None:
     return round(value, 2) if c.tariff_set else None
 
 
-def _start_of(c: Charger, what: str) -> datetime:
-    local = c._local(datetime.now().astimezone())
-    start = local.replace(hour=0, minute=0, second=0, microsecond=0)
-    return start.replace(day=1) if what == "month" else start
+def _start_of(c: Charger, what: str) -> datetime | None:
+    """Start of the period the money counters belong to."""
+    return c.totals.start_of(what, c.tz_name, announced_only=False)
+
+
+def _cycle_start(c: Charger, what: str) -> datetime | None:
+    """Start of the period the energy counters belong to - only for a period
+    counted from zero by this version (logic.Totals.day_from_zero)."""
+    return c.totals.start_of(what, c.tz_name, announced_only=True)
 
 
 def _last_session(c: Charger) -> dict[str, Any] | None:
     s = c.last_session
     if not s:
         return None
-    return {"started": s.get("started"), "finished": s.get("finished"), "minutes": s.get("minutes"), "cost": s.get("cost")}
+    return {
+        "started": s.get("started"),
+        "finished": s.get("finished"),
+        "minutes": s.get("minutes"),
+        "cost": s.get("cost"),
+        "approximate": s.get("approximate", False),
+        "reason": s.get("reason"),
+    }
+
+
+def _power_attributes(c: Charger) -> dict[str, Any] | None:
+    if c.power_reported_w is None:
+        return None
+    # Shown power is calculated (U x I): this firmware reports the power of one
+    # phase on three phases. The charger's own figure stays visible.
+    return {"calculated": "U x I", "reported_power_kw": round(c.power_reported_w / 1000, 3)}
+
+
+def _apparent_kva(c: Charger) -> float | None:
+    if not c.current:
+        return None
+    return round(apparent_power_va(c.voltage, c.current) / 1000, 3)
 
 
 SENSORS: tuple[GnltSensorDescription, ...] = (
@@ -91,6 +119,26 @@ SENSORS: tuple[GnltSensorDescription, ...] = (
         native_unit_of_measurement=UnitOfPower.KILO_WATT,
         suggested_display_precision=2,
         value=lambda c: None if c.power_w is None else round(c.power_w / 1000, 3),
+        attributes=_power_attributes,
+    ),
+    GnltSensorDescription(
+        # Sum of U x I of the phases - apparent power, calculated. Next to the
+        # charger's active power: a charger that reports one phase of three, or
+        # a reading we parse wrongly, is seen at once.
+        key="apparent_power",
+        device_class=SensorDeviceClass.APPARENT_POWER,
+        state_class=SensorStateClass.MEASUREMENT,
+        native_unit_of_measurement=UnitOfApparentPower.KILO_VOLT_AMPERE,
+        suggested_display_precision=2,
+        value=_apparent_kva,
+    ),
+    GnltSensorDescription(
+        # How many phases carry the charge (current above 1 A); unknown outside
+        # a charge. Shows a car or charger that charges on one phase.
+        key="phases_in_use",
+        state_class=SensorStateClass.MEASUREMENT,
+        three_phase_only=True,
+        value=lambda c: c.phases_in_use,
     ),
     *(
         GnltSensorDescription(
@@ -119,19 +167,27 @@ SENSORS: tuple[GnltSensorDescription, ...] = (
     GnltSensorDescription(
         key="session_energy",
         device_class=SensorDeviceClass.ENERGY,
-        # Starts from zero with every charge; Home Assistant reads a drop of a
-        # total_increasing sensor as a new cycle, which is exactly that.
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        # Starts from zero with every charge (last_reset = its start) and may
+        # go down a little when the charger's final figure is below the last
+        # reading: "total", not "total_increasing" - a drop of more than 10 % of
+        # a total_increasing sensor is read as a new cycle and counted again.
+        state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=2,
         value=lambda c: None if c.session_wh is None else round(c.session_wh / 1000, 3),
+        last_reset=lambda c: c.session_started,
     ),
     GnltSensorDescription(
         key="total_energy",
         device_class=SensorDeviceClass.ENERGY,
-        # For the energy dashboard: only grows, blinks of the charger's meter
-        # are filtered out (logic.EnergyCounter).
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        # For the energy dashboard: built from the charger's own figures
+        # (logic.ChargeLedger) - grows with the readings, and goes down once by
+        # the difference when a charge's final figure is below its last
+        # reading (owner 04.10.2026: the final figure is what is recorded).
+        # "total" without last_reset: Home Assistant subtracts such a drop in
+        # its hour; total_increasing would read a drop of over 10 % (a young
+        # installation) as a new meter cycle.
+        state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=2,
         always_available=True,
@@ -177,19 +233,23 @@ SENSORS: tuple[GnltSensorDescription, ...] = (
     GnltSensorDescription(
         key="energy_today",
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        # Same as the money of the day: "total" with the start of the day, so a
+        # correction by a final figure is a small minus, not a new cycle.
+        state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=2,
         value=lambda c: _kwh(c.totals.day_wh),
+        last_reset=lambda c: _cycle_start(c, "day"),
         always_available=True,
     ),
     GnltSensorDescription(
         key="energy_month",
         device_class=SensorDeviceClass.ENERGY,
-        state_class=SensorStateClass.TOTAL_INCREASING,
+        state_class=SensorStateClass.TOTAL,
         native_unit_of_measurement=UnitOfEnergy.KILO_WATT_HOUR,
         suggested_display_precision=2,
         value=lambda c: _kwh(c.totals.month_wh),
+        last_reset=lambda c: _cycle_start(c, "month"),
         always_available=True,
     ),
     GnltSensorDescription(

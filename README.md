@@ -12,9 +12,12 @@ directly in your home network, without a cloud.
 ## Features
 
 - Start and stop charging, current limit (can be changed during charging)
-- Power, current, voltage, energy of the charge and total energy — for the Home Assistant Energy dashboard
+- Power and apparent power (U×I), current, voltage, energy of the charge; total energy — for the Home Assistant Energy dashboard
 - Charging schedule, electricity price (single or two-rate tariff), cost of charging, totals for the day and the month
-- Warnings: "The car did not start charging", "Charging started by the charger itself", "Connector out of service"
+- Warnings: "The car did not start charging", "Charging started by the charger itself", "Connector out of service",
+  "The charger stopped charging" - with the likely cause
+- How many phases are charging the car right now
+- A diagnostics file for support
 - Connecting the charger over Bluetooth or manually
 - Languages: English, Polish, Russian
 
@@ -156,6 +159,11 @@ Use this way if Home Assistant has no Bluetooth.
 ## Good to know
 
 - The names of the charger's sensors and switches are shown in the Home Assistant language set in the system settings.
+- Add the **Energy total (HA)** sensor to the Energy dashboard: it counts every charge, including those the charger started by itself.
+  It counts energy since the charger was added to Home Assistant; "Total" on the charger's screen is the energy over its whole life.
+- On chargers with firmware `SW:A3B_2.7-HW:B07_0.4` and `SW:A3B_3.1-HW:B07_0.5`, the charger reports the power of one
+  phase when charging on three phases. The **Power** sensor then shows the sum of U×I of the phases (a calculated
+  value); the charger's own figure is in the sensor's attributes.
 - After a connection loss the charger is shown as connected for about two more minutes.
 - If the car did not start charging, charging may start by itself when the car wakes up. If you do not want that,
   unplug the cable.
@@ -183,6 +191,12 @@ Use this way if Home Assistant has no Bluetooth.
   in **Discovered**, click **Add** on it and continue. If there is no card, restart Home Assistant and start again.
 - **"This charger version cannot work with Home Assistant over OCPP."** Contact the seller. To use the EV-Charger app,
   do steps 1, 4 and 5 of [Back to the EV-Charger app](#back-to-the-ev-charger-app).
+- **Notification "… the charger stopped charging".** Do what the notification says. "Current above the limit" usually means
+  the car does not follow the set current limit and takes more. Set a different **Current limit** - for example
+  10 A or the maximum - then unplug the cable from the car and plug it in again.
+- **Readings or charging do not behave as you expect.** Right after it happens, download the diagnostics file:
+  **Settings** → **Devices & services** → **GNLT EV Charger** → next to the charger **⋮** → **Download diagnostics**.
+  Send us the file - see below. The file does not contain your Wi-Fi network name or password.
 
 ## Support
 

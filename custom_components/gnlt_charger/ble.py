@@ -2,8 +2,7 @@
 
 Works with the built-in adapter and with ESPHome Bluetooth proxies alike.
 
-Rules carried over from the GNLT app (``apps/user-web/src/ble/link.ts``,
-``AddStationSheet.tsx``), each learned on a live charger:
+Rules carried over from the GNLT app, each learned on a live charger:
 
 * the charger's Bluetooth is ON ONLY WHILE OCPP IS OFF on its screen
   (Settings -> Wi-Fi -> OCPP). Wi-Fi does not matter;

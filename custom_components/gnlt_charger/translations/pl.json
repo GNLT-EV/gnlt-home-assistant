@@ -181,6 +181,12 @@
       "power": {
         "name": "Moc"
       },
+      "apparent_power": {
+        "name": "Moc pozorna (U×I)"
+      },
+      "phases_in_use": {
+        "name": "Liczba aktywnych faz"
+      },
       "current_l1": {
         "name": "Prąd L1"
       },
@@ -203,7 +209,7 @@
         "name": "Energia tego ładowania"
       },
       "total_energy": {
-        "name": "Energia całkowita"
+        "name": "Energia całkowita (HA)"
       },
       "temperature": {
         "name": "Temperatura"
@@ -355,6 +361,9 @@
     },
     "unavailable": {
       "message": "Ładowarka nie może teraz ładować."
+    },
+    "faulted": {
+      "message": "Ładowarka zgłasza błąd ({detail}) i nie może ładować. Odłącz kabel od samochodu i podłącz go ponownie. Jeśli błąd nie zniknie, naciśnij „Uruchom ponownie” na stronie ładowarki."
     },
     "no_session": {
       "message": "To ładowanie zostało rozpoczęte przez samą ładowarkę i nie można go zatrzymać zwykłym poleceniem. Użyj przycisku „Przerwij ładowanie” lub odłącz kabel."
