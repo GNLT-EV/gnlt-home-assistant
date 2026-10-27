@@ -119,8 +119,9 @@ class FakeStation:
             p["vendorErrorCode"] = vendor
         await self.send("StatusNotification", p)
 
-    async def meter(self, samples: list[dict]) -> None:
-        await self.send("MeterValues", {"connectorId": 1, "meterValue": [{"timestamp": ts(), "sampledValue": samples}]})
+    async def meter(self, samples: list[dict], at: str | None = None) -> None:
+        """``at``: the station's timestamp of the reading (default: now)."""
+        await self.send("MeterValues", {"connectorId": 1, "meterValue": [{"timestamp": at or ts(), "sampledValue": samples}]})
 
     def actions(self) -> list[str]:
         return [f[2] for f in self.received]

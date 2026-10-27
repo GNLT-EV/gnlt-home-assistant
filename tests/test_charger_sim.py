@@ -3,6 +3,7 @@ faults, charges the charger starts by itself, Home Assistant restarts."""
 
 import asyncio
 import logging
+from datetime import UTC, datetime, timedelta
 
 import pytest
 from sim import Bench, meter, wait_for
@@ -496,18 +497,23 @@ def test_three_to_one_phase_with_residual_current_on_unused_phases(caplog):
 
 def test_power_cut_in_a_charge_from_home_assistant_register_restarts():
     """Fourth review: BootNotification with the charge open, the charger goes
-    on charging and its register starts again from 0."""
+    on charging and its register starts again from 0. Readings ~31 s apart, as
+    the charger sends them: a restart cannot grow faster than that."""
 
     async def go():
         async with Bench() as (c, st):
             await st.send("StartTransaction", {"connectorId": 1, "idTag": "HomeAssistant", "meterStart": 0, "timestamp": "2026-10-04T01:00:00+02:00"})
             await st.status("Charging")
+            first = datetime.now(UTC) - timedelta(minutes=10)
+            stamps = (
+                (first + timedelta(seconds=31 * i)).isoformat(timespec="milliseconds") for i in range(10)
+            )
             for wh in (0, 150, 300):
-                await st.meter(meter(wh, THREE))
+                await st.meter(meter(wh, THREE), next(stamps))
             await st.send("BootNotification", {"chargePointModel": "Home OCPP", "chargePointVendor": "AEFA", "firmwareVersion": "SW:A3B_2.7-HW:B07_0.4"})
             await st.status("Charging")
             for wh in (0, 92, 183, 275, 367, 458, 550):
-                await st.meter(meter(wh, THREE))
+                await st.meter(meter(wh, THREE), next(stamps))
             assert c.energy.total_wh == 850, c.energy.total_wh
 
     run(go())

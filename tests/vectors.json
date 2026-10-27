@@ -636,6 +636,89 @@
     },
     {
       "basis": "expectation derived by hand",
+      "id": "wrap-65536-full-total",
+      "about": "переход регистра платы через 65 536 (65 400 → 44 за минуту), итог станции ПОЛНЫЙ (65 536 + 1 304 = 66 840): энергия зарядки — 66 840, а не вдвое (зарядка 1236 на проде)",
+      "start_wh": 0,
+      "max_power_w": 11000,
+      "final_at_sec": null,
+      "firmware": "SW:A3B_3.1-HW:B07_0.5",
+      "points": [
+        {
+          "wh": 65190,
+          "sec": 0
+        },
+        {
+          "wh": 65400,
+          "sec": 60
+        },
+        {
+          "wh": 44,
+          "sec": 120
+        },
+        {
+          "wh": 224,
+          "sec": 180
+        },
+        {
+          "wh": 1304,
+          "sec": 240
+        },
+        {
+          "wh": 66840,
+          "sec": 240,
+          "final": true
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          65190,
+          210,
+          180,
+          180,
+          1080
+        ],
+        "total_wh": 66840,
+        "ambiguous": 0,
+        "session_energy_wh": 66840
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
+      "id": "double-dip-returns",
+      "about": "два низких замера подряд и возврат к прежнему счёту за 2 минуты (30 000 → 100 → 200 → 30 100): ложный провал, энергия считается один раз",
+      "start_wh": 0,
+      "max_power_w": 22000,
+      "final_at_sec": null,
+      "points": [
+        {
+          "wh": 30000,
+          "sec": 0
+        },
+        {
+          "wh": 100,
+          "sec": 60
+        },
+        {
+          "wh": 200,
+          "sec": 120
+        },
+        {
+          "wh": 30100,
+          "sec": 180
+        }
+      ],
+      "expected": {
+        "increments_wh": [
+          30000,
+          100
+        ],
+        "total_wh": 30100,
+        "ambiguous": 0,
+        "session_energy_wh": null
+      }
+    },
+    {
+      "basis": "expectation derived by hand",
       "id": "final-arrives-late",
       "about": "итог станции приходит позже метки последнего замера (finalAtSec), пауза считается до прихода итога",
       "start_wh": 0,

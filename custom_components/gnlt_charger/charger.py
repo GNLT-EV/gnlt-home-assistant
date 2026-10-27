@@ -536,6 +536,7 @@ class Charger:
             # A charge was open. After a reconnect it simply continues; after a
             # power cut it is gone. The next connector status tells which.
             self.pending_resume = True
+        self.energy.boot()
         self._persist()
         return (
             {"status": "Accepted", "interval": HEARTBEAT_INTERVAL_S, "currentTime": self._current_time()},

@@ -120,6 +120,12 @@ TIME_SLACK_S = 60
 KEEP_CHARGES = 5
 KEEP_UNRESOLVED = 10
 NO_FINAL = "ended without its final figure (yet)"
+# A register that kept its count never shows less than it again, but for
+# the charger's own corrections downwards: 70-340 Wh seen (GNLT platform,
+# 544 charges, 04.10.2026). A figure after a drop that comes back to within
+# this of the count before it - the charger may not have forgotten.
+RETURN_TOL_WH = 500
+DATA_LOSS = "possible data loss (lost link or charger restart): one figure of the charger taken"
 
 
 def _iso(at: datetime | None) -> str | None:
@@ -155,10 +161,45 @@ class ChargeRecord:
     stopped_at: str | None = None
     stop_raw: str | None = None
     published_wh: float = 0.0
+    start_wh: float | None = None  # the register at the start (None: kept from an older version)
+    undo: list[Any] | None = None  # [peak, inc_wh, drop time] before the last restart, for CONFIRM_WINDOW
+    # Per register count: [its base, its top, announced (the charger sent
+    # BootNotification right before the drop that opened it), the highest
+    # figure since it opened].
+    segs: list[list[float]] = field(default_factory=list)
+    booted: bool = False  # BootNotification since the charger's last count
+    whole: bool = False  # the final figure was taken as the count of the whole charge
+
+    def _groups(self) -> tuple[float, float, float, bool, bool]:
+        """Counts joined over every drop the charger did not show it forgot:
+        energy of the closed ones, base and top of the last one, whether any
+        drop was joined and whether the last one was."""
+        done, joined, last = 0.0, False, False
+        base, top = self.segs[0][0], self.segs[0][1]
+        for seg_base, seg_top, announced, back in self.segs[1:]:
+            if not announced and back >= top - RETURN_TOL_WH:
+                top, joined, last = max(top, seg_top), True, True  # back on the old count: one count
+            else:
+                done, base, top, last = done + top - base, seg_base, seg_top, False
+        return done, base, top, joined, last
+
+    @property
+    def returned(self) -> bool:
+        """After a drop a figure came back to the count before it: the charger
+        may have kept its count - those two counts are never added."""
+        return not self.whole and len(self.segs) > 1 and self._groups()[3]
 
     @property
     def energy_wh(self) -> float:
-        return max(0.0, self.inc_wh - self.correction_wh)
+        if self.whole or len(self.segs) < 2:
+            return max(0.0, self.inc_wh - self.correction_wh)
+        done, base, top, _, joined = self._groups()
+        if not joined:
+            return max(0.0, done + top - base - self.correction_wh)
+        last = top
+        if self.final is not None and top - RETURN_TOL_WH <= self.final <= top:
+            last = self.final  # the charger's own correction of the joined count
+        return max(0.0, done + last - base)
 
     @property
     def approximate(self) -> bool:
@@ -196,13 +237,27 @@ class ChargeLedger:
       belongs to its own charge and is taken back from the totals once.
     * Readings grow the open charge live (estimate); the final figure of
       ``StopTransaction`` goes through the same drop rules as a reading (the
-      GNLT platform feeds it as the last sample).
+      GNLT platform feeds it as the last sample) - except after a restart we
+      assumed: a final figure not less than all we counted is the charger's
+      count of the whole charge, taken as it is (HW:B07 readings wrap at
+      65 536 Wh, the final figure does not; partner's charge 1236,
+      25.10.2026). It is the smaller of the two readings of the final figure;
+      marked approximate when the restarted count could have grown to it too.
     * Drops (shared with the platform): above half of the peak - a correction,
       the peak stays; below half - a candidate restart. The next reading decides:
       not below the peak -> false dip (ambiguous when a restart could have
       grown to that value in the time); back above half within 5 minutes ->
       false dip; still low and growing, or later -> the register restarted: a
-      new segment of the same charge.
+      new segment of the same charge. Back above half of the old count within
+      5 minutes of the drop, faster than a restart could have grown, -> the
+      restart is taken back (shared scenario double-dip-returns, 26.10.2026).
+    * Two counts are added only when the charger showed it forgot the first:
+      no later figure came back to the count before the drop (within its own
+      corrections, ``RETURN_TOL_WH``), or it announced a restart
+      (BootNotification) right before the drop. Otherwise the counts on both
+      sides of that drop are one count (the larger, or the charger's final
+      figure when that is its own correction) - each drop on its own, the
+      charge marked "possible data loss" (owner, 27.10.2026).
     * A charge the charger started by itself begins at 0 when the charger is
       known to count every charge from zero (its own ``meterStart`` = 0), at the
       idle register when it is known to count on; unknown -> the old guess,
@@ -289,6 +344,7 @@ class ChargeLedger:
                 r.note("register mode unknown: start of a charge the charger began by itself guessed")
         self.last_register = value
         self._point(r, value, at, final=False)
+        self._seen(r, value)
         r.last_at = _iso(at)
         return self._publish(r, at)
 
@@ -309,7 +365,17 @@ class ChargeLedger:
         self.last_stop = "matched"
         if meter_stop is not None:
             self.last_register = meter_stop
-            self._point(r, meter_stop, at, final=True)
+            whole = self._whole(r, meter_stop)
+            if whole is not None:
+                if self._could_restart_to(meter_stop - r.peak, parse_ts(r.last_at), at):
+                    r.note("charger restart or lost link: the smaller of two possible figures taken")
+                r.inc_wh, r.correction_wh, r.pending = whole, 0.0, None
+                r.whole = True
+                if DATA_LOSS in r.reasons:
+                    r.reasons.remove(DATA_LOSS)
+            else:
+                self._point(r, meter_stop, at, final=True)
+            self._seen(r, meter_stop)
             r.final = meter_stop
             r.stopped_at = _iso(at)
             r.stop_raw = raw
@@ -327,6 +393,13 @@ class ChargeLedger:
         self._prune()
         return deltas, r
 
+    def boot(self) -> None:
+        """BootNotification: the charger restarted or reconnected. A drop of
+        the register right after it is a restart the charger announced."""
+        r = self.open_record
+        if r is not None:
+            r.booted = True
+
     def close_open(self, at: datetime) -> list[Delta]:
         """The open charge ended without its final figure (yet): its estimate
         stands until a late StopTransaction replaces it."""
@@ -342,7 +415,8 @@ class ChargeLedger:
     # --- internals ------------------------------------------------------------
 
     def _open(self, number: int | None, base: float, at: datetime) -> ChargeRecord:
-        r = ChargeRecord(rid=self.next_rid, number=number, started=_iso(at), peak=base)
+        r = ChargeRecord(rid=self.next_rid, number=number, started=_iso(at), peak=base, start_wh=base)
+        r.segs = [[base, base, 0.0, base]]
         self.next_rid += 1
         self.records.append(r)
         return r
@@ -375,6 +449,19 @@ class ChargeLedger:
 
     def _point(self, r: ChargeRecord, v: float, at: datetime, final: bool) -> None:
         """One value of the register, a reading or the final figure."""
+        if r.pending is None and r.undo is not None:
+            peak, inc, dropped = r.undo
+            dropped_at = parse_ts(dropped) or at
+            if at - dropped_at > CONFIRM_WINDOW:
+                r.undo = None
+            elif v >= RESET_BELOW * peak and not self._could_restart_to(v, dropped_at, at):
+                # Back on the old count faster than a restart could have grown:
+                # a false dip after all.
+                r.peak, r.inc_wh, r.undo = peak, inc, None
+                r.resets -= 1
+                if len(r.segs) > 1:
+                    r.segs.pop()
+                r.note("a few low readings ignored: the register returned to its count")
         half = RESET_BELOW * r.peak
         if r.pending is None:
             if v >= r.peak:
@@ -406,16 +493,32 @@ class ChargeLedger:
             else:
                 self._restart(r, v)
         elif v > r.pending or final or at - dropped_at > CONFIRM_WINDOW:
+            r.undo = [r.peak, r.inc_wh, r.pending_at]
             self._restart(r, v)
         # else: still low and not growing - keep waiting
 
     def _restart(self, r: ChargeRecord, v: float) -> None:
         """The register restarted: a new segment, counted from 0."""
+        # The charger said it restarted (BootNotification) after its last count.
+        r.segs.append([0.0, v, 1.0 if r.booted else 0.0, v])
+        r.booted = False
         r.resets += 1
         r.inc_wh += v
         r.peak = v
         r.correction_wh = 0.0
         r.pending = None
+
+    def _seen(self, r: ChargeRecord, v: float) -> None:
+        """A figure of the charger: its count from the start, and whether it
+        came back to a count it had before a drop."""
+        if r.segs:
+            r.segs[-1][1] = max(r.segs[-1][1], v)
+        if r.pending is None and v >= r.peak:
+            r.booted = False  # its count went on: a reconnect, not a restart
+        for seg in r.segs:
+            seg[3] = max(seg[3], v)
+        if r.returned:
+            r.note(DATA_LOSS)
 
     def _publish(self, r: ChargeRecord, at: datetime) -> list[Delta]:
         delta = r.energy_wh - r.published_wh
@@ -424,8 +527,22 @@ class ChargeLedger:
         r.published_wh += delta
         return [Delta(delta, at, r.rid)]
 
+    def _whole(self, r: ChargeRecord, v: float) -> float | None:
+        """After a restart we assumed, the final figure as the charger's count
+        of the whole charge - when it is not less than all we counted. None
+        otherwise."""
+        start = r.start_wh
+        if start is None and self.register_mode == "zero":
+            start = 0.0  # a charge stored by an older version
+        if not r.resets or start is None or v - start < r.inc_wh:
+            return None
+        return v - start
+
     def _fits(self, r: ChargeRecord, v: float, at: datetime) -> bool:
         """The final figure fits the charge without assuming a restart."""
+        whole = self._whole(r, v)
+        if whole is not None:
+            return self._could_restart_to(whole - r.inc_wh, parse_ts(r.last_at), at)
         if v < RESET_BELOW * r.peak:
             return False
         if v <= r.peak:
