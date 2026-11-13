@@ -763,14 +763,21 @@ def extract_metrics(samples: Any) -> Metrics:
     return m
 
 
-# Firmware whose phase-less power is, on three phases, the power of ONE phase:
-# the register agrees with the integral of the sum of U x I (1.00) and not with
-# the integral of the reported power (0.33) - GNLT platform data, 450 of 584
-# three-phase readings, 04.10.2026. SW:A3B_2.7-HW:B07_0.4 - live three-phase
-# charge, 06.10.2026: reported 3400-3500 W at a sum of U x I of 10.2-10.4 kW
-# (0.33-0.34), register 0.99 of it, the charger's own screen 10.5 kW. Only an
-# exact match; other firmware is not assumed to behave the same.
-ONE_PHASE_POWER_PROFILES = frozenset({"SW:A3B_3.1-HW:B07_0.5", "SW:A3B_2.7-HW:B07_0.4"})
+# Board whose phase-less power is, on three phases, the power of ONE phase:
+# B07 (series 10, serial starting with 10) has one meter, on one phase; E22
+# (series 30) has one per phase. The register agrees with the integral of the
+# sum of U x I (1.00), not with the reported power (0.33). GNLT platform data,
+# 02.11.2026: every three-phase firmware on B07 (A3B_2.7, A3B_3.1, P3B_2.7,
+# P3B_3.1) 0.33, every one on E22 1.00; live bench SW:A3B_2.7-HW:B07_0.4,
+# 06.10.2026: 3400-3500 W at 10.2-10.4 kVA, the charger's own screen 10.5 kW.
+# Single-phase firmware on B07 (A1B, P1B) never sends current on two phases
+# (0 of 112 000 platform readings, 07.11.2026), so the fix leaves it alone.
+ONE_PHASE_POWER_BOARD = "HW:B07_"
+
+
+def reports_one_phase_power(firmware: str | None) -> bool:
+    """The charger's board sends the power of one phase (see above)."""
+    return ONE_PHASE_POWER_BOARD in (firmware or "")
 
 
 def apparent_power_va(voltage: dict[str, float], current: dict[str, float]) -> float:

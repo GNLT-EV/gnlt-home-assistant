@@ -66,7 +66,7 @@ def test_phase_drop_is_logged(caplog):
 def test_power_of_one_phase_in_three_phase_charge_is_recorded(caplog):
     async def go():
         async with Bench() as (c, st):
-            await st.send("BootNotification", {"chargePointModel": "Home OCPP", "chargePointVendor": "AEFA", "firmwareVersion": "SW:A1B_2.7-HW:B07_0.4"})
+            await st.send("BootNotification", {"chargePointModel": "Home OCPP", "chargePointVendor": "AEFA", "firmwareVersion": "SW:A3C_3.1-HW:E22_2.1"})
             await st.status("Charging")
             await st.meter(meter(500, THREE, power_w=3680))
             assert c.power_mismatch is None
@@ -467,10 +467,13 @@ def test_late_stop_of_the_chargers_own_charge_after_the_next_ones_readings():
             await st.status("Finishing")
             await asyncio.sleep(0.05)
             ended_a = ts()
-            await asyncio.sleep(6)
+            # B begins 6 s later on the charger's clock (its timestamps, not a
+            # real wait: the test machine's clock may step back by seconds).
+            b_at = datetime.fromisoformat(ended_a) + timedelta(seconds=6)
             await st.status("Charging")
-            for wh in (0, 100, 200, 300):
-                await st.meter(meter(wh, THREE))
+            for i, wh in enumerate((0, 100, 200, 300)):
+                at = (b_at + timedelta(seconds=i)).isoformat(timespec="milliseconds")
+                await st.meter(meter(wh, THREE), at=at)
             await st.send("StopTransaction", {"meterStop": 460, "reason": "Local", "timestamp": ended_a})
             # A at its final figure 460 (was its last reading 470) + B 300.
             assert c.energy.total_wh == 760, c.energy.total_wh

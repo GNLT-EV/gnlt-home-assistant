@@ -161,9 +161,10 @@ Use this way if Home Assistant has no Bluetooth.
 - The names of the charger's sensors and switches are shown in the Home Assistant language set in the system settings.
 - Add the **Energy total (HA)** sensor to the Energy dashboard: it counts every charge, including those the charger started by itself.
   It counts energy since the charger was added to Home Assistant; "Total" on the charger's screen is the energy over its whole life.
-- On chargers with firmware `SW:A3B_2.7-HW:B07_0.4` and `SW:A3B_3.1-HW:B07_0.5`, the charger reports the power of one
-  phase when charging on three phases. The **Power** sensor then shows the sum of U×I of the phases (a calculated
-  value); the charger's own figure is in the sensor's attributes.
+- On chargers whose firmware contains `HW:B07` (for example `SW:A3B_2.7-HW:B07_0.4` or `SW:A3B_3.1-HW:B07_0.5`; the firmware is
+  shown on the device page in Home Assistant), the charger reports the power of one phase when charging on three phases.
+  The **Power** sensor then shows the sum of U×I of the phases (a calculated value); the charger's own figure is in the
+  sensor's attributes.
 - After a connection loss the charger is shown as connected for about two more minutes.
 - If the car did not start charging, charging may start by itself when the car wakes up. If you do not want that,
   unplug the cable.

@@ -23,7 +23,7 @@ GNLT repository, ``CLAUDE.md`` -> "Нестандартная логика"):
 * energy is the charger's own figures: final value of every charge + the
   register of the running one, drops judged by the rules shared with the GNLT
   platform (``logic.ChargeLedger``);
-* on firmware known to report the power of one phase on three phases the
+* on a board known to report the power of one phase on three phases the
   power shown is the sum of U x I (``logic.one_phase_power_fix``).
 """
 
@@ -48,7 +48,6 @@ from .logic import (
     CALL,
     CALLERROR,
     CALLRESULT,
-    ONE_PHASE_POWER_PROFILES,
     ChargeLedger,
     ChargeRecord,
     Delta,
@@ -63,6 +62,7 @@ from .logic import (
     parse_ts,
     one_phase_power_fix,
     plugged_idle,
+    reports_one_phase_power,
     station_timestamp,
     supports_resume_after_power_loss,
 )
@@ -275,7 +275,7 @@ class Charger:
         # phases: kept for the diagnostics file (see _check_power).
         self.power_mismatch: dict[str, Any] | None = None
         # The charger's own power figure when the one shown is calculated
-        # (ONE_PHASE_POWER_PROFILES); None when the charger's figure is shown.
+        # (reports_one_phase_power); None when the charger's figure is shown.
         self.power_reported_w: float | None = None
         self._power_mismatch_in_row = 0
         self._power_mismatch_logged = False
@@ -953,7 +953,7 @@ class Charger:
                 m.current,
                 per_phase_power=m.power_per_phase,
                 power_factor=m.power_factor,
-                profile_confirmed=self.firmware in ONE_PHASE_POWER_PROFILES,
+                profile_confirmed=reports_one_phase_power(self.firmware),
             )
             self.power_reported_w = m.power_w if shown != m.power_w else None
             self.power_w = shown
@@ -1018,7 +1018,7 @@ class Charger:
         Neither figure is changed and no cause is assumed - they may differ
         honestly (power factor), or our reading of the frame may be wrong. A big
         difference is kept, with the raw values, for the diagnostics file and
-        written to the log once per charge. A known case (a profile reporting
+        written to the log once per charge. A known case (a board reporting
         one phase, see one_phase_power_fix) is not a mismatch."""
         complete = bool(m.current) and bool(m.voltage)
         va = apparent_power_va(m.voltage, m.current) if complete else 0.0

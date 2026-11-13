@@ -84,7 +84,7 @@ def _last_session(c: Charger) -> dict[str, Any] | None:
 def _power_attributes(c: Charger) -> dict[str, Any] | None:
     if c.power_reported_w is None:
         return None
-    # Shown power is calculated (U x I): this firmware reports the power of one
+    # Shown power is calculated (U x I): this board reports the power of one
     # phase on three phases. The charger's own figure stays visible.
     return {"calculated": "U x I", "reported_power_kw": round(c.power_reported_w / 1000, 3)}
 

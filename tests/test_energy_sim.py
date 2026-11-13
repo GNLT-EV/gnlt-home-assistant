@@ -283,6 +283,63 @@ def test_a3b_2_7_on_three_phases_shows_u_x_i():
     run(go())
 
 
+def test_p3b_on_three_phases_shows_u_x_i():
+    """Partner's platform, 02.11.2026: SW:P3B_2.7-HW:B07_0.5 (series 10, board
+    B07) showed 2.3 kW at 3 x 10 A - the power of one phase, as on A3B. Any
+    three-phase firmware on B07 does so (platform: A3B_2.7/3.1, P3B_2.7/3.1)."""
+
+    async def go():
+        bench = Bench()
+        c, st = await bench.__aenter__()
+        try:
+            await st.send("BootNotification", {**BOOT, "firmwareVersion": "SW:P3B_2.7-HW:B07_0.5"})
+            await st.status("Charging")
+            await st.meter(meter(500, {"L1": 10.0, "L2": 10.0, "L3": 10.0}, voltage=230.0, power_w=2300))
+            assert round(c.power_w) == 6900
+            assert c.power_reported_w == 2300
+        finally:
+            await bench.__aexit__(None, None, None)
+
+    run(go())
+
+
+def test_board_e22_keeps_the_chargers_power():
+    """Series 30 (board E22) sends the power of all phases: never replaced."""
+
+    async def go():
+        bench = Bench()
+        c, st = await bench.__aenter__()
+        try:
+            await st.send("BootNotification", {**BOOT, "firmwareVersion": "SW:A3C_3.1-HW:E22_2.1"})
+            await st.status("Charging")
+            await st.meter(meter(500, {"L1": 10.0, "L2": 10.0, "L3": 10.0}, voltage=230.0, power_w=2300))
+            assert c.power_w == 2300
+            assert c.power_reported_w is None
+        finally:
+            await bench.__aexit__(None, None, None)
+
+    run(go())
+
+
+def test_single_phase_firmware_on_b07_keeps_the_chargers_power():
+    """A1B on B07 sends current on L1 only (platform, 07.11.2026: 0 of 112 000
+    readings with current on two phases): one phase is not replaced."""
+
+    async def go():
+        bench = Bench()
+        c, st = await bench.__aenter__()
+        try:
+            await st.send("BootNotification", {**BOOT, "firmwareVersion": "SW:A1B_3.1-HW:B07_0.5"})
+            await st.status("Charging")
+            await st.meter(meter(500, {"L1": 16.0, "L2": 0.0, "L3": 0.0}, voltage=230.0, power_w=3680))
+            assert c.power_w == 3680
+            assert c.power_reported_w is None
+        finally:
+            await bench.__aexit__(None, None, None)
+
+    run(go())
+
+
 def test_charger_figure_cleared_when_the_charge_ends():
     """Cloud review 06.10.2026: after the charge the power is 0, so the
     charger's own figure must not stay in the power sensor's attributes."""
@@ -303,12 +360,12 @@ def test_charger_figure_cleared_when_the_charge_ends():
     run(go())
 
 
-def test_other_firmware_keeps_the_chargers_power_and_records_the_difference(caplog):
+def test_other_board_keeps_the_chargers_power_and_records_the_difference(caplog):
     async def go():
         bench = Bench()
         c, st = await bench.__aenter__()
         try:
-            await st.send("BootNotification", {**BOOT, "firmwareVersion": "SW:A1B_2.7-HW:B07_0.4"})
+            await st.send("BootNotification", {**BOOT, "firmwareVersion": "SW:A3C_3.1-HW:E22_2.1"})
             await st.status("Charging")
             for wh in (500, 600):
                 await st.meter(meter(wh, {"L1": 9.1, "L2": 9.1, "L3": 9.1}, power_w=2100))

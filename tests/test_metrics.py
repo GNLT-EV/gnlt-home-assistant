@@ -1,6 +1,6 @@
 """Readings in every form OCPP 1.6 allows, one phase and three."""
 
-from gnlt_charger.logic import extract_metrics
+from gnlt_charger.logic import extract_metrics, reports_one_phase_power
 
 
 def sv(measurand, value, unit=None, phase=None, **extra):
@@ -123,3 +123,11 @@ def test_bad_values_are_skipped():
     m = extract_metrics([sv("Power.Active.Import", "x", "W"), "junk", None, sv("Voltage", 230, "V", "L1")])
     assert m.power_w is None
     assert m.voltage == {"L1": 230}
+
+
+def test_one_phase_power_board():
+    """Board B07 (series 10) of any firmware; not E22, not unknown."""
+    for fw in ("SW:A3B_2.7-HW:B07_0.4", "SW:P3B_2.7-HW:B07_0.5", "SW:A1B_3.1-HW:B07_0.5"):
+        assert reports_one_phase_power(fw), fw
+    for fw in ("SW:A3C_3.1-HW:E22_2.1", "HW:B070_1.0", "", None):
+        assert not reports_one_phase_power(fw), fw

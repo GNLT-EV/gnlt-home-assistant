@@ -163,9 +163,10 @@ Użyj tego sposobu, jeśli Home Assistant nie ma Bluetootha.
 - Nazwy czujników i przełączników ładowarki są wyświetlane w języku Home Assistanta wybranym w ustawieniach systemu.
 - Do panelu „Energia” dodaj czujnik **Energia całkowita (HA)**: uwzględnia wszystkie ładowania, także te rozpoczęte przez samą ładowarkę.
   Liczy energię od chwili dodania ładowarki do Home Assistanta; „Total” na ekranie ładowarki to energia od początku jej pracy.
-- Ładowarki z oprogramowaniem `SW:A3B_2.7-HW:B07_0.4` i `SW:A3B_3.1-HW:B07_0.5` przy ładowaniu trójfazowym podają
-  moc tylko jednej fazy. Czujnik **Moc** pokazuje wtedy sumę U×I dla wszystkich faz (wartość obliczona); moc podana
-  przez ładowarkę znajduje się w atrybutach czujnika.
+- W ładowarkach, w których wersja oprogramowania zawiera `HW:B07` (na przykład `SW:A3B_2.7-HW:B07_0.4` lub
+  `SW:A3B_3.1-HW:B07_0.5`; wersję oprogramowania widać na stronie urządzenia w Home Assistancie), przy ładowaniu
+  trójfazowym ładowarka podaje moc tylko jednej fazy. Czujnik **Moc** pokazuje wtedy sumę U×I wszystkich faz (wartość
+  obliczona); wartość podana przez samą ładowarkę znajduje się w atrybutach czujnika.
 - Po utracie połączenia ładowarka jest jeszcze przez około dwie minuty widoczna jako połączona.
 - Jeśli samochód nie zaczął się ładować, ładowanie może rozpocząć się samo, gdy samochód się wybudzi. Jeśli tego nie
   chcesz, odłącz kabel.
