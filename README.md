@@ -188,8 +188,7 @@ switches between 1 and 3 phases.
 
 **Firmware.** Stopping a charge and switching phases while charging over ModBus require firmware 3.1 or newer (the
 version is shown on the charger screen). On older firmware, for example 2.7, the charger does not stop on a stop
-command: it lowers the current to the minimum and accepts no new commands until the cable is unplugged from the car. To
-stop a charge on such firmware, unplug the cable from the car. For full control use the OCPP connection.
+command: it lowers the current to the minimum and accepts no new commands until the cable is unplugged from the car.
 
 **Entities:** status, charger message, cable, power, apparent power, power L1–L3, currents and voltages L1–L3, phases in
 use, energy of the charge and total energy (Energy dashboard), prices and costs, energy and cost today and this month,

@@ -191,8 +191,7 @@ i przełącza między 1 a 3 fazami.
 **Oprogramowanie.** Zatrzymanie ładowania i zmiana faz w trakcie ładowania przez ModBus wymagają oprogramowania 3.1 lub
 nowszego (wersja jest widoczna na ekranie ładowarki). Przy starszym oprogramowaniu, na przykład 2.7, ładowarka nie
 zatrzymuje się po poleceniu zatrzymania: obniża prąd do minimum i nie przyjmuje nowych poleceń, dopóki kabel nie
-zostanie odłączony od samochodu. Aby zatrzymać ładowanie przy takim oprogramowaniu, odłącz kabel od samochodu. Aby mieć
-pełne sterowanie, użyj połączenia OCPP.
+zostanie odłączony od samochodu.
 
 **Encje:** stan, komunikat ładowarki, kabel, moc, moc pozorna, moc L1–L3, prądy i napięcia L1–L3, liczba aktywnych faz,
 energia ładowania i energia całkowita (panel „Energia”), ceny i koszty, energia i koszt dziś oraz w tym miesiącu,
