@@ -7,7 +7,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .entity import GnltEntity, run_command
 
@@ -15,6 +15,16 @@ from .entity import GnltEntity, run_command
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "button")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "button")
+        return
     charger = entry.runtime_data
     async_add_entities([RestartButton(charger), RefreshButton(charger), ForceStopButton(charger)])
 
@@ -24,7 +34,7 @@ class RestartButton(GnltEntity, ButtonEntity):
     _attr_entity_category = EntityCategory.CONFIG
     # Stays available while the charger is offline: Home Assistant writes every
     # "unavailable -> available" flip of a button to the logbook as "Pressed" -
-    # six false "Restart - Pressed" on the partner's bench, 25.09.2026, one per
+    # six false "Restart - Pressed" on a test installation, one per
     # reconnect. A press without a connection says "not connected".
     _always_available = True
 
@@ -55,8 +65,8 @@ class ForceStopButton(GnltEntity, ButtonEntity):
 
     # Available all the time, like RestartButton: it used to appear only while
     # the charger charged by itself, and every "unavailable -> available" flip
-    # was written to the logbook as "Pressed" (partner's bench, 25.09.2026,
-    # 19:38:51). A press with nothing to interrupt says so and sends nothing.
+    # was written to the logbook as "Pressed" (seen on a test installation).
+    # A press with nothing to interrupt says so and sends nothing.
     _always_available = True
 
     def __init__(self, charger: Charger) -> None:

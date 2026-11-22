@@ -1,7 +1,6 @@
 """Pure rules for GNLT EVE/EVB chargers, shared by the OCPP server and entities.
 
-Every rule here was paid for on the live GNLT platform; the history lives in
-``CLAUDE.md`` and ``PROJECT_LOG.md`` of the main repository. Nothing in this
+Every rule here comes from experience with the GNLT platform. Nothing in this
 module imports Home Assistant, so it is covered by plain pytest.
 """
 
@@ -102,7 +101,7 @@ def station_timestamp(value: Any, now: datetime) -> datetime:
 
 # --- meter -------------------------------------------------------------------
 
-# Rules shared with the GNLT platform (agreed 04.10.2026; common scenarios in
+# Rules shared with the GNLT platform (agreed; common scenarios in
 # tests/vectors.json). They are a chosen
 # heuristic, not a proof - an ambiguous choice is marked on the charge.
 # Only a drop below half of the peak can be a restart of the register; a smaller
@@ -122,7 +121,7 @@ KEEP_UNRESOLVED = 10
 NO_FINAL = "ended without its final figure (yet)"
 # A register that kept its count never shows less than it again, but for
 # the charger's own corrections downwards: 70-340 Wh seen (GNLT platform,
-# 544 charges, 04.10.2026). A figure after a drop that comes back to within
+# 544 charges). A figure after a drop that comes back to within
 # this of the count before it - the charger may not have forgotten.
 RETURN_TOL_WH = 500
 DATA_LOSS = "possible data loss (lost link or charger restart): one figure of the charger taken"
@@ -140,8 +139,7 @@ class ChargeRecord:
     A segment is a stretch of one register count; a restart of the register in
     the middle of the charge opens the next one. Energy = sum of the segments;
     when no restart happened and the final figure came, it is the charger's own
-    ``meterStop - meterStart`` (owner's decision 04.10.2026: the charger's final
-    figure is what is recorded)."""
+    ``meterStop - meterStart``."""
 
     rid: int
     number: int | None = None
@@ -232,7 +230,7 @@ class Delta:
 class ChargeLedger:
     """Energy (Wh) from the charger's own numbers.
 
-    * Every charge is a :class:`ChargeRecord`; ``total_wh`` is the sum of what
+    * Every charge is a:class:`ChargeRecord`; ``total_wh`` is the sum of what
       each record published - there is no carried-over "debt": a correction
       belongs to its own charge and is taken back from the totals once.
     * Readings grow the open charge live (estimate); the final figure of
@@ -240,8 +238,7 @@ class ChargeLedger:
       GNLT platform feeds it as the last sample) - except after a restart we
       assumed: a final figure not less than all we counted is the charger's
       count of the whole charge, taken as it is (HW:B07 readings wrap at
-      65 536 Wh, the final figure does not; partner's charge 1236,
-      25.10.2026). It is the smaller of the two readings of the final figure;
+      65 536 Wh, the final figure does not). It is the smaller of the two readings of the final figure;
       marked approximate when the restarted count could have grown to it too.
     * Drops (shared with the platform): above half of the peak - a correction,
       the peak stays; below half - a candidate restart. The next reading decides:
@@ -250,14 +247,14 @@ class ChargeLedger:
       false dip; still low and growing, or later -> the register restarted: a
       new segment of the same charge. Back above half of the old count within
       5 minutes of the drop, faster than a restart could have grown, -> the
-      restart is taken back (shared scenario double-dip-returns, 26.10.2026).
+      restart is taken back (shared scenario double-dip-returns).
     * Two counts are added only when the charger showed it forgot the first:
       no later figure came back to the count before the drop (within its own
       corrections, ``RETURN_TOL_WH``), or it announced a restart
       (BootNotification) right before the drop. Otherwise the counts on both
       sides of that drop are one count (the larger, or the charger's final
       figure when that is its own correction) - each drop on its own, the
-      charge marked "possible data loss" (owner, 27.10.2026).
+      charge marked "possible data loss".
     * A charge the charger started by itself begins at 0 when the charger is
       known to count every charge from zero (its own ``meterStart`` = 0), at the
       idle register when it is known to count on; unknown -> the old guess,
@@ -336,7 +333,7 @@ class ChargeLedger:
             if not charging or self._idle_register(value):
                 # Idle: the register holds the last charge's value - also while
                 # the status still says Charging after StopTransaction (a second
-                # normally, minutes after an emergency stop; review 5).
+                # normally, minutes after an emergency stop).
                 self.last_register = value
                 return []
             r = self._open(None, self._own_start_base(value), at)
@@ -560,8 +557,7 @@ class ChargeLedger:
                 return r
         open_r = self.open_record
         # An unknown start (a charge carried over from the old storage format
-        # without its session) proves nothing either way (platform review,
-        # 04.10.2026).
+        # without its session) proves nothing either way.
         started = parse_ts(open_r.started) if open_r is not None else None
         open_began_before = started is not None and at >= started - timedelta(seconds=5)
         open_began_after = started is not None and at < started - timedelta(seconds=5)
@@ -571,7 +567,7 @@ class ChargeLedger:
                 return found
             if open_r is not None and open_began_before:
                 # The charger runs its only charge under the number of an
-                # EARLIER session (partner's bench 25.09.2026), and the stop is
+                # EARLIER session, and the stop is
                 # stamped inside the open charge: it is the open one.
                 return open_r
             if found is not None:
@@ -691,7 +687,7 @@ def _total(whole: float | None, phases: dict[str, float]) -> float | None:
     """A value without a phase is the whole; without it the phases add up.
 
     Three-phase firmware may send power and energy per phase only: taking the
-    last sample showed one third of the real power (04.10.2026).
+    last sample showed one third of the real power.
     """
     if whole is not None:
         return whole
@@ -767,11 +763,11 @@ def extract_metrics(samples: Any) -> Metrics:
 # B07 (series 10, serial starting with 10) has one meter, on one phase; E22
 # (series 30) has one per phase. The register agrees with the integral of the
 # sum of U x I (1.00), not with the reported power (0.33). GNLT platform data,
-# 02.11.2026: every three-phase firmware on B07 (A3B_2.7, A3B_3.1, P3B_2.7,
-# P3B_3.1) 0.33, every one on E22 1.00; live bench SW:A3B_2.7-HW:B07_0.4,
-# 06.10.2026: 3400-3500 W at 10.2-10.4 kVA, the charger's own screen 10.5 kW.
+# every three-phase firmware on B07 (A3B_2.7, A3B_3.1, P3B_2.7,
+# P3B_3.1) 0.33, every one on E22 1.00; a test unit SW:A3B_2.7-HW:B07_0.4,
+# 3400-3500 W at 10.2-10.4 kVA, the charger's own screen 10.5 kW.
 # Single-phase firmware on B07 (A1B, P1B) never sends current on two phases
-# (0 of 112 000 platform readings, 07.11.2026), so the fix leaves it alone.
+# (0 of 112 000 platform readings), so the fix leaves it alone.
 ONE_PHASE_POWER_BOARD = "HW:B07_"
 
 
@@ -831,8 +827,7 @@ def is_real_finishing(status: str | None, previous: str | None) -> bool:
     Used for the automatic start only: "cable plugged in" is the second case,
     never the first. A MANUAL start is allowed in both - whether current flows
     after a finished charge depends on the car, and a start it does not take is
-    caught by ``Charger._watch_start`` (changed 24.09.2026 after a partner's
-    test: three of four such starts worked).
+    caught by ``Charger._watch_start``.
     """
     if status != "Finishing":
         return False
@@ -843,7 +838,7 @@ CABLE_STATUSES = frozenset({"Preparing", "Charging", "SuspendedEV", "SuspendedEV
 
 
 def firmware_version(raw: str | None) -> float | None:
-    """``SW:A1B_2.7-HW:B07_0.4`` -> 2.07 (so that 2.10 > 2.9)."""
+    """``SW:A1B_2.7-HW:B07_0.4`` -> 2.07."""
     m = re.search(r"SW:[A-Za-z0-9]+_(\d+)\.(\d+)", raw or "")
     if not m:
         return None
@@ -866,7 +861,7 @@ def model_name(serial: str | None, firmware: str | None, country: str | None = N
     ‼️ In Poland (gnlt.pl) the letters are the other way round: the portable
     unit is sold as GNLT EVB (EVB03B, EVB11B), the wall box as GNLT EVE. A buyer
     there saw "GNLT EVE" on his portable EVB11B and took it for a wrong device
-    (partner's bench, 25.09.2026). The country comes from Home Assistant."""
+. The country comes from Home Assistant."""
     portable, wall = ("GNLT EVB", "GNLT EVE") if (country or "").upper() == "PL" else ("GNLT EVE", "GNLT EVB")
     by_serial = portable if (serial or "").startswith("10") else wall if (serial or "").startswith("30") else None
     m = re.search(r"HW:([A-Za-z0-9]+)_", firmware or "")
@@ -884,19 +879,19 @@ def clamp_current(amps: float, max_a: int) -> int:
 # --- schedule, tariff, statistics ------------------------------------------------
 #
 # Same rules as the GNLT platform:
-#   * a window is given in minutes of the local day; ``end <= start`` means it
-#     crosses midnight and ends the next day; the day filter applies to the day
-#     the window STARTS;
-#   * a scheduled start needs the cable in the car and no charge running, and is
-#     repeated at most every 3 minutes;
-#   * every portion of energy is priced at the moment it was delivered - a charge
-#     that runs from the day into the night tariff is paid at both prices.
+# * a window is given in minutes of the local day; ``end <= start`` means it
+# crosses midnight and ends the next day; the day filter applies to the day
+# the window STARTS;
+# * a scheduled start needs the cable in the car and no charge running, and is
+# repeated at most every 3 minutes;
+# * every portion of energy is priced at the moment it was delivered - a charge
+# that runs from the day into the night tariff is paid at both prices.
 
 DAY_SCOPES = ("all", "weekdays", "weekends")
 
 
 def _day_ok(scope: str, weekday: int) -> bool:
-    """weekday: 0 = Monday ... 6 = Sunday."""
+    """weekday: 0 = Monday... 6 = Sunday."""
     if scope == "weekdays":
         return weekday < 5
     if scope == "weekends":
@@ -986,7 +981,7 @@ class Totals:
     # as consumed since that start (sensor/recorder.py, compile_statistics), so
     # announcing the running day's start in the middle of the day - at an
     # update from 0.2.8, when the day's energy was already counted - counted it
-    # twice (stand, 04.10.2026: +19.99 kWh). A period not seen from zero goes on
+    # twice. A period not seen from zero goes on
     # as the cycle Home Assistant already has.
     day_from_zero: bool = False
     month_from_zero: bool = False
@@ -996,7 +991,7 @@ class Totals:
         if self.day and day < self.day:
             # Never back: a reading stamped up to a minute ahead may roll the
             # day first, and Home Assistant's own clock comes a moment later
-            # (review 5, M1: the new day was zeroed back to yesterday).
+            # .
             return
         if day != self.day:
             self.day, self.day_wh, self.day_cost = day, 0.0, 0.0

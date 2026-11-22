@@ -5,8 +5,10 @@
       "user": {
         "title": "Add a GNLT charger",
         "menu_options": {
-          "pick_device": "Set up a charger over Bluetooth (recommended)",
-          "manual": "The charger is already on the network — enter its number"
+          "pick_device": "Set up a charger over Bluetooth (OCPP, recommended)",
+          "manual": "OCPP: the charger is already on the network — enter its number",
+          "modbus_intro": "ModBus TCP (local network)",
+          "site": "GNLT site: load management and PV for several ModBus chargers (beta)"
         }
       },
       "bluetooth_confirm": {
@@ -72,6 +74,72 @@
         "data": {
           "preset": "Charger version"
         }
+      },
+      "modbus_intro": {
+        "title": "ModBus TCP: before you start",
+        "description": "In ModBus mode Home Assistant talks to the charger directly in the local network. Prepare the charger first:\n\n1. **Wi-Fi.** Connect the charger to Wi-Fi (2.4 GHz) with the charger app over Bluetooth, with DHCP on, and reserve its IP address in the router (or set a fixed IP in the app). ModBus TCP works only over Wi-Fi. While ModBus is on, the charger cannot be set up over Bluetooth.\n2. **Menu \"Load & communication\".** Switch load balancing on and choose the communication mode **ModBus TCP** (not RS485, not EM3-Box). OCPP and ModBus cannot work at the same time.\n3. **Menu \"Current adjustment\".** Set it to the maximum of the charger: the charger uses the lower of this value and the limit from Home Assistant.\n4. **Menu \"Charge mode\".** Switch Plug & charge off to start and stop from Home Assistant (it is on from the factory).\n5. Switch off the charger's own reservations (they fight the Home Assistant schedule) and set the date and time on the charger.\n6. Switch off the charger's \"1-phase mode\" if you want to switch between 1 and 3 phases.\n7. **Only one ModBus program.** Switch off evcc and other integrations or devices that use ModBus of this charger."
+      },
+      "modbus_address": {
+        "title": "ModBus TCP: address of the charger",
+        "description": "If the charger does not answer, wait 3 minutes before trying again.",
+        "data": {
+          "host": "IP address or host name",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "Shown in the Wi-Fi menu of the charger, for example 192.168.1.50.",
+          "port": "Leave 502."
+        }
+      },
+      "modbus_model": {
+        "title": "ModBus TCP: charger {serial}",
+        "description": "Check the charger version; it sets the maximum current.\n\nStopping a charge and switching phases while charging over ModBus require firmware 3.1 or newer (the version is shown on the charger screen). On older firmware, for example 2.7, the charger does not stop on a stop command: it lowers the current to the minimum and accepts no new commands until the cable is unplugged from the car. To stop a charge on such firmware, unplug the cable from the car. For full control use the OCPP connection.\n\nIf this charger also has an OCPP entry, that entry shows \"not connected\" while the charger is in ModBus mode; you may disable it.",
+        "data": {
+          "preset": "Charger version"
+        }
+      },
+      "site": {
+        "title": "GNLT site: grid connection (beta)",
+        "description": "The site controls the chosen ModBus chargers together: no grid phase goes above the fuse limit, and each charger can charge from PV surplus (charge mode on its device page).\n\nGrid meter: one current sensor per phase, in amperes, import positive and export negative. If your meter shows import as negative, turn on \"Invert sign\".\n\nThis function is in beta and does not replace the electrical protection (circuit breaker) of the installation.",
+        "data": {
+          "grid_current_l1": "Grid current L1",
+          "grid_current_l2": "Grid current L2",
+          "grid_current_l3": "Grid current L3",
+          "grid_invert": "Invert sign of the grid sensors",
+          "grid_power": "Grid power (optional, for PV)",
+          "pv_power": "PV power (optional)",
+          "meter_period_s": "Meter update period",
+          "fuse_limit_a": "Fuse limit per phase",
+          "max_total_power_w": "Total power limit (0 = none)",
+          "meter_failure_action": "When the grid meter fails",
+          "stations": "Chargers of this site"
+        },
+        "data_description": {
+          "meter_period_s": "How often the meter sensors get a new value; the site works in the same rhythm (default 10 s).",
+          "max_total_power_w": "Limit of the whole connection in watts, if the contract sets one.",
+          "grid_power": "Without it the grid power is calculated from the three currents x 230 V."
+        }
+      },
+      "site_member": {
+        "title": "GNLT site: charger {name} (beta)",
+        "description": "Priority: 1 is served first; chargers with the same number share equally.\n\nGrid phase of charger L1: the grid phase its L1 terminal is wired to (rotated wiring spreads single-phase cars over the phases).",
+        "data": {
+          "priority": "Priority",
+          "phase_1": "Grid phase of charger L1"
+        }
+      },
+      "site_pv": {
+        "title": "GNLT site: PV charging (beta)",
+        "description": "Used in the charge modes \"PV\" and \"Min + PV\". Defaults: start when the surplus covers the minimum current for 1 minute, stop when it has been missing for 3 minutes.",
+        "data": {
+          "enable_threshold_w": "Start threshold (grid power)",
+          "disable_threshold_w": "Stop threshold (grid power)",
+          "enable_delay_s": "Start delay",
+          "disable_delay_s": "Stop delay"
+        },
+        "data_description": {
+          "enable_threshold_w": "0 = automatic: the surplus must cover the minimum current. A negative value is the export needed to start."
+        }
       }
     },
     "progress": {
@@ -94,7 +162,21 @@
       "ble_connect_failed": "Could not connect to the charger. Switch OCPP off on the charger, close the app on your phone and click Submit.",
       "ble_no_answer": "The charger does not answer. Close the app on your phone and click Submit.",
       "ble_rejected": "The charger did not accept the settings. Click Submit again.",
-      "ble_failed": "Setup over Bluetooth failed. Move the Bluetooth adapter closer to the charger and click Submit."
+      "ble_failed": "Setup over Bluetooth failed. Move the Bluetooth adapter closer to the charger and click Submit.",
+      "mb_host_empty": "Enter the IP address or the host name of the charger.",
+      "mb_cannot_resolve": "This host name is not known in the network. Enter the IP address of the charger.",
+      "mb_no_answer": "The charger did not answer. Wait 3 minutes and try again.",
+      "mb_refused": "The charger refuses the connection: ModBus TCP is not selected in the charger menu (Load & communication), the charger is in OCPP mode, or it still holds a previous connection. Try again in 3 minutes; if it repeats, switch the charger's power off for 10 seconds.",
+      "mb_unreachable": "The charger is not reachable in the network. Check its Wi-Fi and its IP address (Wi-Fi menu of the charger).",
+      "mb_busy": "The charger is busy: another ModBus program is connected or a connection was made just now. Try again in 3 minutes.",
+      "mb_not_ready": "The charger answered with empty data - it is probably starting up. Try again in a minute.",
+      "mb_not_gnlt": "The device at this address did not report a GNLT serial number.",
+      "mb_exception": "The device answered, but not as a GNLT charger. Check that it is a GNLT charger with ModBus TCP selected in its menu.",
+      "mb_address_unknown": "Another charger added in ModBus mode is not connected and its address cannot be found, so Home Assistant cannot rule out that it is this charger. Try again when that charger is connected, or correct its address.",
+      "site_no_members": "Choose at least one charger.",
+      "site_grid_missing": "Choose a current sensor for every phase.",
+      "site_grid_same": "Choose a different sensor for every phase.",
+      "site_power_same": "Grid power and PV power must be different sensors."
     },
     "abort": {
       "already_configured": "This charger is already added.",
@@ -103,7 +185,12 @@
       "reprovisioned": "The charger received the new settings. Wait for the Wi-Fi icon on the charger screen, press OK, choose Wi-Fi, switch OCPP on and leave the menu.",
       "ble_not_charger": "This is not a GNLT charger.",
       "firmware_too_old": "This charger version cannot work with Home Assistant over OCPP. Contact the seller.",
-      "continue_setup": "Continuing the setup."
+      "continue_setup": "Continuing the setup.",
+      "address_in_use": "This address is already used by a charger added in ModBus mode.",
+      "site_no_modbus": "Add the chargers in ModBus TCP mode first; the site controls ModBus chargers only."
+    },
+    "create_entry": {
+      "modbus_created": "The charger is added."
     }
   },
   "options": {
@@ -127,7 +214,92 @@
           "night_price": "For a two-zone tariff. 0 means a single tariff. Energy delivered at night is priced at this rate even if the charge started in the day."
         },
         "description": "Prices are per 1 kWh, in the currency of Home Assistant ({currency})."
+      },
+      "modbus": {
+        "title": "Charger settings (ModBus)",
+        "description": "Prices are per 1 kWh, in the currency of Home Assistant ({currency}). A new address or port reconnects the charger; all other settings apply at once.",
+        "data": {
+          "preset": "Charger version",
+          "host": "IP address or host name",
+          "port": "Port",
+          "auto_start": "Start when the cable is connected",
+          "resume_after_power_loss": "Continue charging after a power cut",
+          "price": "Electricity price",
+          "night_price": "Night price",
+          "night_start": "Night tariff from",
+          "night_end": "Night tariff until",
+          "energy_source": "Energy counted from",
+          "meter_interval": "How often Home Assistant reads the charger, seconds"
+        },
+        "data_description": {
+          "auto_start": "Home Assistant starts the charge itself when you plug the cable into the car. Cannot be combined with the schedule: turning one on turns the other off.",
+          "resume_after_power_loss": "If the charger restarts during a charge (for example after a power cut), Home Assistant starts the charge again.",
+          "price": "Price per 1 kWh. 0 — the cost is not calculated.",
+          "night_price": "For a two-zone tariff. 0 means a single tariff.",
+          "energy_source": "Power over time (default) or the charger's own meter. Applies from the next charge."
+        }
+      },
+      "site": {
+        "title": "GNLT site: grid connection (beta)",
+        "description": "The site controls the chosen ModBus chargers together: no grid phase goes above the fuse limit, and each charger can charge from PV surplus (charge mode on its device page).\n\nGrid meter: one current sensor per phase, in amperes, import positive and export negative. If your meter shows import as negative, turn on \"Invert sign\".\n\nThis function is in beta and does not replace the electrical protection (circuit breaker) of the installation.",
+        "data": {
+          "grid_current_l1": "Grid current L1",
+          "grid_current_l2": "Grid current L2",
+          "grid_current_l3": "Grid current L3",
+          "grid_invert": "Invert sign of the grid sensors",
+          "grid_power": "Grid power (optional, for PV)",
+          "pv_power": "PV power (optional)",
+          "meter_period_s": "Meter update period",
+          "fuse_limit_a": "Fuse limit per phase",
+          "max_total_power_w": "Total power limit (0 = none)",
+          "meter_failure_action": "When the grid meter fails",
+          "stations": "Chargers of this site"
+        },
+        "data_description": {
+          "meter_period_s": "How often the meter sensors get a new value; the site works in the same rhythm (default 10 s).",
+          "max_total_power_w": "Limit of the whole connection in watts, if the contract sets one.",
+          "grid_power": "Without it the grid power is calculated from the three currents x 230 V."
+        }
+      },
+      "site_member": {
+        "title": "GNLT site: charger {name} (beta)",
+        "description": "Priority: 1 is served first; chargers with the same number share equally.\n\nGrid phase of charger L1: the grid phase its L1 terminal is wired to (rotated wiring spreads single-phase cars over the phases).",
+        "data": {
+          "priority": "Priority",
+          "phase_1": "Grid phase of charger L1"
+        }
+      },
+      "site_pv": {
+        "title": "GNLT site: PV charging (beta)",
+        "description": "Used in the charge modes \"PV\" and \"Min + PV\". Defaults: start when the surplus covers the minimum current for 1 minute, stop when it has been missing for 3 minutes.",
+        "data": {
+          "enable_threshold_w": "Start threshold (grid power)",
+          "disable_threshold_w": "Stop threshold (grid power)",
+          "enable_delay_s": "Start delay",
+          "disable_delay_s": "Stop delay"
+        },
+        "data_description": {
+          "enable_threshold_w": "0 = automatic: the surplus must cover the minimum current. A negative value is the export needed to start."
+        }
       }
+    },
+    "error": {
+      "mb_host_empty": "Enter the IP address or the host name of the charger.",
+      "mb_cannot_resolve": "This host name is not known in the network. Enter the IP address of the charger.",
+      "mb_no_answer": "The charger did not answer at the new address. Wait 3 minutes and try again.",
+      "mb_refused": "The charger refuses the connection: ModBus TCP is not selected in the charger menu, the charger is in OCPP mode, or it still holds a previous connection.",
+      "mb_unreachable": "The charger is not reachable at the new address. Check its Wi-Fi and its IP address.",
+      "mb_busy": "The charger is busy: another ModBus program is connected or a connection was made just now. Try again in 3 minutes.",
+      "mb_not_ready": "The charger answered with empty data - it is probably starting up. Try again in a minute.",
+      "mb_not_gnlt": "The device at the new address did not report a GNLT serial number.",
+      "mb_serial_mismatch": "Another charger answers at the new address. The address was not changed.",
+      "address_in_use": "This address is already used by another charger.",
+      "mb_exception": "The device answered, but not as a GNLT charger. Check that it is a GNLT charger with ModBus TCP selected in its menu.",
+      "mb_address_unknown": "Another charger added in ModBus mode is not connected and its address cannot be found, so Home Assistant cannot rule out that it is this charger. Try again when that charger is connected, or correct its address.",
+      "site_no_members": "Choose at least one charger.",
+      "site_grid_missing": "Choose a current sensor for every phase.",
+      "site_grid_same": "Choose a different sensor for every phase.",
+      "site_power_same": "Grid power and PV power must be different sensors."
     }
   },
   "selector": {
@@ -138,6 +310,26 @@
         "1_11": "Single-phase 11 kW — 48 A",
         "3_11": "Three-phase 11 kW — 3 × 16 A",
         "3_22": "Three-phase 22 kW — 3 × 32 A"
+      }
+    },
+    "mb_energy_source": {
+      "options": {
+        "integral": "Power over time (calculated)",
+        "register": "Meter of the charger"
+      }
+    },
+    "site_failure_action": {
+      "options": {
+        "openwb": "Limit all chargers together to 7 kW (within the fuse)",
+        "minimum": "All chargers at their minimum current, within the fuse",
+        "stop": "Stop all chargers"
+      }
+    },
+    "site_phase_1": {
+      "options": {
+        "1": "L1",
+        "2": "L2",
+        "3": "L3"
       }
     }
   },
@@ -240,6 +432,121 @@
       },
       "next_start": {
         "name": "Next scheduled start"
+      },
+      "mb_status": {
+        "name": "Status",
+        "state": {
+          "unknown": "Unknown",
+          "standby": "Free",
+          "connected": "Cable connected",
+          "starting": "Starting",
+          "charging": "Charging",
+          "start_failed": "Start failed",
+          "finished": "Charge finished",
+          "fault": "Fault",
+          "scheduled": "Waiting for the charger's own schedule",
+          "firmware_update": "Firmware update",
+          "booting": "Starting up"
+        }
+      },
+      "mb_error": {
+        "name": "Charger message",
+        "state": {
+          "no_error": "No messages",
+          "cp_fault": "Control pilot (CP) error",
+          "emergency_stop": "Emergency stop pressed",
+          "under_voltage": "Mains voltage below normal",
+          "over_voltage": "Mains voltage above normal",
+          "over_temperature": "Charger overheated",
+          "meter_fault": "Meter error",
+          "leakage_fault": "Leakage current",
+          "output_short": "Short circuit at the output",
+          "over_current": "Current above the limit",
+          "vehicle_fault": "Car error",
+          "vehicle_timeout": "No answer from the car",
+          "relay_welded": "Power relay stuck - service needed",
+          "rcd_fault": "Residual current device error",
+          "pe_fault": "Earthing (PE) error",
+          "startup_fault": "Start-up error",
+          "unknown": "Other message"
+        }
+      },
+      "mb_current_setpoint": {
+        "name": "Current setpoint of the charger"
+      },
+      "mb_min_current": {
+        "name": "Minimum current"
+      },
+      "mb_max_current": {
+        "name": "Maximum current"
+      },
+      "mb_cable_max_current": {
+        "name": "Maximum current of the cable"
+      },
+      "mb_fallback_current": {
+        "name": "Fallback current"
+      },
+      "mb_comm_timeout": {
+        "name": "Communication timeout"
+      },
+      "mb_station_meter": {
+        "name": "Meter of the charger"
+      },
+      "mb_charge_duration": {
+        "name": "Charge duration"
+      },
+      "mb_link_errors_24h": {
+        "name": "Connection errors (24 h)"
+      },
+      "mb_last_link_error": {
+        "name": "Last connection error"
+      },
+      "site_grid_current_l1": {
+        "name": "Grid current L1"
+      },
+      "site_grid_current_l2": {
+        "name": "Grid current L2"
+      },
+      "site_grid_current_l3": {
+        "name": "Grid current L3"
+      },
+      "site_headroom_l1": {
+        "name": "Headroom L1"
+      },
+      "site_headroom_l2": {
+        "name": "Headroom L2"
+      },
+      "site_headroom_l3": {
+        "name": "Headroom L3"
+      },
+      "site_power": {
+        "name": "Grid power"
+      },
+      "site_pv_surplus": {
+        "name": "PV surplus"
+      },
+      "site_allowed_current": {
+        "name": "Allowed current {station}"
+      },
+      "site_meter_state": {
+        "name": "Grid meter",
+        "state": {
+          "ok": "OK",
+          "error_grace": "Error, waiting",
+          "not_new": "No new value",
+          "failed_error": "Failed: error",
+          "failed_stale": "Failed: no update",
+          "failed_frozen": "Failed: value frozen"
+        }
+      },
+      "mb_power_l1": {
+        "name": "Power L1"
+      },
+      "mb_power_l2": {
+        "name": "Power L2"
+      },
+      "mb_power_l3": {
+        "name": "Power L3"
       }
     },
     "binary_sensor": {
@@ -272,6 +579,13 @@
       },
       "out_of_service": {
         "name": "Connector out of service",
+        "state": {
+          "on": "Yes",
+          "off": "No"
+        }
+      },
+      "mb_stop_not_working": {
+        "name": "Stop does not work",
         "state": {
           "on": "Yes",
           "off": "No"
@@ -316,6 +630,9 @@
       },
       "force_stop": {
         "name": "Interrupt charging"
+      },
+      "mb_pnc_off_and_stop": {
+        "name": "Turn Plug & Charge off and stop"
       }
     },
     "time": {
@@ -333,6 +650,23 @@
           "all": "Every day",
           "weekdays": "Weekdays",
           "weekends": "Weekends"
+        }
+      },
+      "mb_phases": {
+        "name": "Phases",
+        "state": {
+          "1": "1 phase",
+          "3": "3 phases",
+          "auto": "Automatic"
+        }
+      },
+      "mb_loadpoint_mode": {
+        "name": "Charge mode",
+        "state": {
+          "off": "Off",
+          "now": "Fast",
+          "minpv": "Min + PV",
+          "pv": "PV"
         }
       }
     }
@@ -376,6 +710,85 @@
     },
     "replug": {
       "message": "The car did not take current last time, and the charger will not accept a new start. Unplug the cable, plug it in again and start."
+    },
+    "not_ready": {
+      "message": "The charger has not been read since it connected. Try again in a few seconds."
+    },
+    "identity_mismatch": {
+      "message": "Another charger answers at this address. Commands are blocked until this charger answers again."
+    },
+    "station_busy": {
+      "message": "The charger cannot take commands now (status {detail})."
+    },
+    "register_not_allowed": {
+      "message": "This value cannot be written to the charger."
+    },
+    "busy": {
+      "message": "Another command is running. Try again when it has finished."
+    },
+    "plug_and_charge_on": {
+      "message": "Plug & Charge is on: the charger starts charging by itself when a car is plugged in. Turn Plug & Charge off to start and stop from Home Assistant."
+    },
+    "phase_refused_charging": {
+      "message": "Phases cannot be changed during charging. Stop charging first."
+    },
+    "phase_refused_class_unknown": {
+      "message": "The charger is not fully read yet. Try again in a minute, or reload the integration."
+    },
+    "phase_refused_not_applicable": {
+      "message": "This charger cannot switch phases now (single-phase version, firmware without phase switching, or phase changes blocked until the cable is unplugged)."
+    },
+    "no_car": {
+      "message": "No car is connected."
+    },
+    "site_member_pnc": {
+      "message": "This charger is controlled by the GNLT site: Plug & Charge cannot be switched on while it is a member of the site."
+    },
+    "mb_faulted": {
+      "message": "The charger reports an error ({detail}) and cannot charge."
+    },
+    "mb_faulted_replug": {
+      "message": "The charger reports an error ({detail}) and cannot charge. Unplug the cable from the car and plug it in again."
+    }
+  },
+  "issues": {
+    "station_not_responding": {
+      "title": "{name}: no connection over ModBus",
+      "description": "The charger has not answered for 3 minutes. Check in this order:\n\n1. Wait 3 minutes: after a reconnect the charger may stay silent, and after a Home Assistant crash it may still hold the previous connection.\n2. No other program uses ModBus of this charger (evcc, other integrations, other devices on port 502).\n3. The charger is not switched to OCPP.\n4. The IP address of the charger has not changed (Wi-Fi menu of the charger).\n5. In the charger menu switch ModBus TCP or load management off and on.\n6. Switch the charger's mains power off for at least 10 seconds and wait about 20 seconds.\n\nThis message disappears by itself when the charger answers again."
+    },
+    "identity_mismatch": {
+      "title": "{name}: another charger answers at this address",
+      "description": "Another device (serial number {serial_seen}) answers at the address of this charger - the router may have given the address to another unit. Home Assistant sends no commands until this charger answers again. Reserve a fixed IP address for the charger in the router and enter it in the charger settings."
+    },
+    "relay_welded": {
+      "title": "{name}: power relay stuck - service needed",
+      "description": "The charger reports a stuck (welded) power relay. This is a safety fault: Home Assistant starts no charge while the charger reports this error. Contact the seller for service."
+    },
+    "pnc_reset": {
+      "title": "{name}: Plug & Charge switched on by the charger",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Switch Plug & Charge off",
+            "description": "After a power cut the charger switched Plug & Charge back on. It now starts charging by itself and does not take start and stop commands from Home Assistant. Submit to switch Plug & Charge off on {name} again (your setting)."
+          }
+        },
+        "error": {
+          "not_connected": "The charger is not connected. Try again later.",
+          "not_ready": "The charger has not been read yet. Try again in a few seconds.",
+          "identity_mismatch": "Another charger answers at this address.",
+          "busy": "Another command is running. Try again in a moment.",
+          "station_busy": "The charger cannot take commands now. Try again later.",
+          "write_failed": "The charger did not accept the setting. Try again or switch Plug & Charge off in the charger menu."
+        },
+        "abort": {
+          "not_loaded": "The charger is not loaded in Home Assistant."
+        }
+      }
+    },
+    "site_stopped": {
+      "title": "{name}: load management stopped",
+      "description": "The GNLT site stopped controlling its chargers ({reason}). Every charger was left at its minimum current; the site starts or stops nothing until it runs again. Reload the site in Settings -> Devices & services; if it stops again, send its diagnostics to the seller."
     }
   }
 }

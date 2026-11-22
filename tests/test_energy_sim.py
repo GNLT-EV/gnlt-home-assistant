@@ -1,6 +1,5 @@
 """Energy and power over the whole OCPP conversation with a fake charger:
-the cases found with the GNLT platform (review
-04.10.2026). Each failed on 5577f19."""
+the cases found with the GNLT platform. Each failed on 5577f19."""
 
 import asyncio
 from datetime import UTC, datetime, timedelta
@@ -69,7 +68,7 @@ async def reboot(bench):
 def test_reset_in_a_charge_is_one_charge(after, own, end):
     """Platform case: 65 530, reboot, register from 0 to 4 234, ONE stop
     with meterStop 4 234. Truth 69 764 - in the totals and in the last charge
-    (owner 04.10.2026). 5577f19: 65 530 without readings after the reboot, and
+. 5577f19: 65 530 without readings after the reboot, and
     the last charge 4,234 always."""
 
     async def go():
@@ -102,7 +101,7 @@ def test_reset_in_a_charge_is_one_charge(after, own, end):
 
 
 def test_next_charge_after_a_reset_is_counted():
-    """Check A (platform review): 5577f19 swallowed the next 10 kWh charge."""
+    """Check A: 5577f19 swallowed the next 10 kWh charge."""
 
     async def go():
         bench = Bench()
@@ -192,7 +191,7 @@ def test_own_charge_with_first_reading_above_the_last_final():
 
 
 def test_stop_of_own_charge_with_a_clock_behind_is_not_thrown_away():
-    """First run of 04.10.2026: a stop of the charger's own charge stamped
+    """First run of: a stop of the charger's own charge stamped
     before the charge began was dropped as a late one - 4 234 Wh lost. Now the
     ledger matches it by the readings (the only charge)."""
 
@@ -264,7 +263,7 @@ def test_three_phase_firmware_reporting_one_phase_shows_u_x_i():
 
 
 def test_a3b_2_7_on_three_phases_shows_u_x_i():
-    """Live bench 06.10.2026, SW:A3B_2.7-HW:B07_0.4 on three phases: the charger
+    """A test unit, SW:A3B_2.7-HW:B07_0.4 on three phases: the charger
     sends 3500 W (its own screen 10.5 kW), the register grows at the sum of U x I.
     Shown: the sum of U x I; the charger's figure kept."""
 
@@ -284,7 +283,7 @@ def test_a3b_2_7_on_three_phases_shows_u_x_i():
 
 
 def test_p3b_on_three_phases_shows_u_x_i():
-    """Partner's platform, 02.11.2026: SW:P3B_2.7-HW:B07_0.5 (series 10, board
+    """Partner's platform: SW:P3B_2.7-HW:B07_0.5 (series 10, board
     B07) showed 2.3 kW at 3 x 10 A - the power of one phase, as on A3B. Any
     three-phase firmware on B07 does so (platform: A3B_2.7/3.1, P3B_2.7/3.1)."""
 
@@ -322,8 +321,7 @@ def test_board_e22_keeps_the_chargers_power():
 
 
 def test_single_phase_firmware_on_b07_keeps_the_chargers_power():
-    """A1B on B07 sends current on L1 only (platform, 07.11.2026: 0 of 112 000
-    readings with current on two phases): one phase is not replaced."""
+    """A1B on B07 sends current on L1 only (platform): one phase is not replaced."""
 
     async def go():
         bench = Bench()
@@ -341,7 +339,7 @@ def test_single_phase_firmware_on_b07_keeps_the_chargers_power():
 
 
 def test_charger_figure_cleared_when_the_charge_ends():
-    """Cloud review 06.10.2026: after the charge the power is 0, so the
+    """Cloud review: after the charge the power is 0, so the
     charger's own figure must not stay in the power sensor's attributes."""
 
     async def go():

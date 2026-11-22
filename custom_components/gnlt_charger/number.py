@@ -13,7 +13,7 @@ from homeassistant.const import UnitOfElectricCurrent
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .entity import GnltEntity, run_command
 
@@ -21,6 +21,16 @@ from .entity import GnltEntity, run_command
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "number")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "number")
+        return
     async_add_entities([CurrentLimit(entry.runtime_data)])
 
 

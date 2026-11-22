@@ -1,9 +1,9 @@
 """Scenarios shared with the GNLT platform (tests/vectors.json, hand-derived
 expectations confirmed by the platform). Same inputs,
 same outputs - "same rules, same numbers". A difference is a question for the
-partners, never a reason to edit the expectations here.
+platform, never a reason to edit the expectations here.
 
-One difference is declared (owner's decision 04.10.2026, agreed with the
+One difference is declared (agreed with the
 platform): the energy of a charge is the charger's final figure when the
 register did not restart; the platform keeps the sum of increments when that
 sum is more than 100 Wh above it.

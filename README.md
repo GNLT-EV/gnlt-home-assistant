@@ -19,6 +19,8 @@ directly in your home network, without a cloud.
 - How many phases are charging the car right now
 - A diagnostics file for support
 - Connecting the charger over Bluetooth or manually
+- ModBus TCP mode as an alternative to OCPP
+- Load management and PV charging for several ModBus chargers (beta)
 - Languages: English, Polish, Russian
 
 ## What you need
@@ -52,7 +54,7 @@ New versions will appear in **Settings** → **System** → **Updates**.
    is switched on, switch **OCPP** off and leave the menu.
 2. In Home Assistant open **Settings** → **Devices & services** → **Add integration**.
 3. Type `GNLT` in the search and choose **GNLT EV Charger**.
-4. Choose **Set up a charger over Bluetooth (recommended)**.
+4. Choose **Set up a charger over Bluetooth (OCPP, recommended)**.
 5. In the **Charger** field choose your charger — its serial number is on the housing — and click **Submit**. If you
    see "Charger not found", check that OCPP is off on the charger and the EV-Charger app is closed, move the Bluetooth
    adapter (or the computer running Home Assistant, if Bluetooth is built in) closer to the charger and click
@@ -110,7 +112,7 @@ Use this way if Home Assistant has no Bluetooth.
    does not find the charger, switch OCPP off on the charger. Make sure Wi-Fi is switched on at the charger.
 2. In Home Assistant open **Settings** → **Devices & services** → **Add integration**.
 3. Type `GNLT` in the search and choose **GNLT EV Charger**.
-4. Choose **The charger is already on the network — enter its number**.
+4. Choose **OCPP: the charger is already on the network — enter its number**.
 5. Enter the **Serial number** (12 digits from the charger housing), choose the **Charger version** — the number of
    phases and the power, as on the charger's rating plate. If there is a **Port for chargers** field, leave `9000` (if
    the port is busy — `9001`, as in step 6 of the Bluetooth section). Click **Submit**.
@@ -156,13 +158,110 @@ Use this way if Home Assistant has no Bluetooth.
 5. On the charger press **OK**, choose **Wi-Fi**, switch **OCPP** on and leave the menu. The charger connects to the
    EV-Charger app.
 
+## ModBus mode
+
+Instead of OCPP, a charger can be added over **ModBus TCP** in the local network. ModBus sets the current and
+switches between 1 and 3 phases.
+
+**Prepare the charger** (also shown in the wizard):
+
+1. Connect the charger to Wi-Fi (2.4 GHz) with the charger app over Bluetooth, before switching ModBus on. Reserve its
+   IP address in the router. ModBus TCP works only over Wi-Fi, not with the EM3-Box.
+2. Charger menu **Load & communication**: load balancing on, communication mode **ModBus TCP**. OCPP and ModBus
+   exclude each other: the charger works in one of the two modes at a time.
+3. Menu **Current adjustment** at the maximum: the charger uses the lower of this value and the limit from Home
+   Assistant.
+4. Menu **Charge mode**: switch Plug & charge off if Home Assistant should decide when to charge (it is on from the
+   factory).
+5. The charger's own reservations off; date and time set on the charger.
+6. The charger's "1-phase mode" off if you want to switch between 1 and 3 phases.
+7. Only one ModBus program at a time: the charger accepts one ModBus connection. Switch off evcc, other integrations
+   and any other device using port 502 of the charger.
+
+**Adding the charger:**
+
+1. In Home Assistant open **Settings** → **Devices & services** → **Add integration**.
+2. Type `GNLT` in the search and choose **GNLT EV Charger**.
+3. Choose **ModBus TCP (local network)** and click **Submit**.
+4. Enter the charger's IP address (shown in the charger's Wi-Fi menu) and leave port `502`. Click **Submit**.
+5. Check the charger version — the number of phases and the power, as on the rating plate. Click **Submit**.
+
+**Firmware.** Stopping a charge and switching phases while charging over ModBus require firmware 3.1 or newer (the
+version is shown on the charger screen). On older firmware, for example 2.7, the charger does not stop on a stop
+command: it lowers the current to the minimum and accepts no new commands until the cable is unplugged from the car. To
+stop a charge on such firmware, unplug the cable from the car. For full control use the OCPP connection.
+
+**Entities:** status, charger message, cable, power, apparent power, power L1–L3, currents and voltages L1–L3, phases in
+use, energy of the charge and total energy (Energy dashboard), prices and costs, energy and cost today and this month,
+last charge, schedule, start when the cable is connected, continue after a power cut, Plug & Charge, current limit,
+charging on/off, phases 1/3, refresh, the button "Turn Plug & Charge off and stop", notifications and diagnostics.
+Diagnostic entities: the charger's current setpoint, minimum, maximum and cable current, the charger's meter,
+charge duration, connection errors and "Stop does not work". "Stop does not work" turns on when the charger keeps
+charging after a stop command (firmware older than 3.1).
+
+**Not available over ModBus:** restart of the charger, "Interrupt charging", temperature, firmware version, the car's
+state of charge, and Bluetooth set-up while ModBus is on.
+
+**Poll interval.** Home Assistant reads the charger every 10 seconds. To change it: **Settings** → **Devices &
+services** → **GNLT EV Charger** → the ModBus entry → **Configure** → "How often Home Assistant reads the charger,
+seconds".
+
+**Switching between OCPP and ModBus.** One charger can have two entries: an OCPP entry and a ModBus entry. The entry
+whose mode is active on the charger works; the other one shows the charger as not connected. To switch, change the
+mode in the charger menu: for ModBus — **Load & communication** → ModBus TCP; for OCPP — switch ModBus TCP off there and
+switch **OCPP** on in the **Wi-Fi** menu. You may disable the entry you do not use. In the Energy dashboard use only one **Energy total (HA)** sensor.
+
+**Good to know (ModBus)**
+
+- **Wi-Fi:** 2.4 GHz, WPA2 only, ideally a separate network name without mesh roaming, and a fixed IP address.
+- **Plug & Charge:** when it is on, the charger starts charging by itself as soon as the cable is connected. After a
+  power cut the charger may switch it back on; Home Assistant then offers a one-click repair. The button "Turn Plug &
+  Charge off and stop" does both at once.
+- **Automatic starts** (start when the cable is connected, schedule, continue after a power cut) are at least
+  3 minutes apart. A start by hand is not limited.
+- **Stopping without ModBus:** in the car app, in the charger app over Bluetooth (with ModBus switched off), or by
+  unplugging the cable.
+
+**If the charger does not answer** (in this order): wait 3 minutes → check that no other ModBus program or device is
+connected → in the charger menu switch ModBus TCP or load balancing off and on → switch the charger's mains power off
+for at least 10 seconds and wait about 20 seconds. A factory reset also deletes the ModBus settings.
+
+## Load management and PV for several chargers (beta)
+
+> **Beta.** This function is new. It does not replace the electrical protection of the installation: the circuit
+> breakers stay as they are. Your feedback is welcome — see [Support](#support).
+
+A **GNLT site** controls several chargers added over ModBus together:
+
+- no phase of the grid connection goes above the fuse limit you set — the site measures the grid current of each phase
+  and shares the free current between the chargers;
+- each charger can charge from PV surplus.
+
+On the device page of each charger choose the **Charge mode**: **Off**, **Fast**, **Min + PV** or **PV**.
+
+**What you need:** chargers added over ModBus and one current sensor per grid phase in Home Assistant (amperes, import
+positive, export negative). A grid power sensor is optional: without it the grid power is calculated from the three
+currents × 230 V.
+
+**Adding the site:**
+
+1. In Home Assistant open **Settings** → **Devices & services** → **Add integration**.
+2. Type `GNLT` in the search and choose **GNLT EV Charger**.
+3. Choose **GNLT site: load management and PV for several ModBus chargers (beta)**.
+4. Choose the grid current sensors, enter the fuse limit per phase, choose the chargers of the site and click
+   **Submit**. Then set the priority and the grid phase of each charger and the PV settings.
+
+If the grid meter stops sending values, the site does what is set in "When the grid meter fails".
+
+If Home Assistant or the network stops, each charger keeps its last current; the circuit breaker of the installation remains the protection.
+
 ## Good to know
 
 - The names of the charger's sensors and switches are shown in the Home Assistant language set in the system settings.
 - Add the **Energy total (HA)** sensor to the Energy dashboard: it counts every charge, including those the charger started by itself.
   It counts energy since the charger was added to Home Assistant; "Total" on the charger's screen is the energy over its whole life.
 - On chargers whose firmware contains `HW:B07` (for example `SW:A3B_2.7-HW:B07_0.4` or `SW:A3B_3.1-HW:B07_0.5`; the firmware is
-  shown on the device page in Home Assistant), the charger reports the power of one phase when charging on three phases.
+  shown on the device page in Home Assistant over OCPP), the charger reports the power of one phase when charging on three phases.
   The **Power** sensor then shows the sum of U×I of the phases (a calculated value); the charger's own figure is in the
   sensor's attributes.
 - After a connection loss the charger is shown as connected for about two more minutes.

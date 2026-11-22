@@ -1,7 +1,7 @@
 """Notifications for situations that need the person.
 
 A yes/no sensor under "Diagnostics" is the record; the notification is what
-the person actually sees - the same idea as the platform's owner alerts. Text
+the person actually sees - the same idea as the platform's user alerts. Text
 says what happened and what to do, in the language of Home Assistant (a
 persistent notification is not translated by Home Assistant itself).
 

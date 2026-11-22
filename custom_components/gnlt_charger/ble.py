@@ -9,7 +9,7 @@ Rules carried over from the GNLT app, each learned on a live charger:
 * the characteristics are chosen by their PROPERTIES (write + notify), not by
   UUID - the UUIDs differ between revisions of the radio module;
 * frames go in 20-byte pieces 300 ms apart;
-* the charger greets first (``A5 02 00 A7``) and expects ``AA 02 80 2C``;
+* the charger greets first and expects ``AA 02 80 2C``;
 * the serial number is checked against what the charger REPORTS - it
   advertises either its serial or ``BL602-BLE-DEV``, and a neighbour's charger
   may be closer;
@@ -109,7 +109,7 @@ class ChargerLink:
 
         # The known data service first: the charger also has a second service
         # with the same properties that only echoes what is written into it,
-        # and BlueZ lists that one first (stand, 27.09.2026). The platform
+        # and BlueZ lists that one first. The platform
         # app uses the same UUID; properties remain the fallback for other
         # revisions of the radio module.
         services = sorted(self._client.services, key=lambda s: s.uuid.lower() != DATA_SERVICE_UUID)
@@ -213,7 +213,7 @@ async def provision(
 ) -> tuple[DeviceInfo, StationState | None]:
     """Write Wi-Fi and the Home Assistant address into the charger.
 
-    Returns what the charger said about itself. Raises :class:`BleError`.
+    Returns what the charger said about itself. Raises:class:`BleError`.
     """
     say = progress or (lambda _s: None)
     link = ChargerLink(hass, address)

@@ -1,0 +1,78 @@
+GNLT EV Charger - ModBus TCP mode (custom_components/gnlt_charger/modbus)
+
+modbus/client.py is derived from custom_components/pvsc/modbus_client.py of
+Lu-Fi's ha-em2go-pvsc (commit 1f8203b), published under the MIT License.
+The GNLT modifications are listed in the header of modbus/client.py.
+
+-----------------------------------------------------------------------------
+MIT License
+
+Copyright (c) 2026 Lutz Fiebach
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-----------------------------------------------------------------------------
+
+No code or structure of evcc's charger/em2go*.go or charger/daheimladen.go is
+used (those files are not MIT licensed). Behaviour learned from evcc's MIT
+core (loadpoint phase and current logic) is re-implemented in our own words.
+
+=============================================================================
+evcc core - custom_components/gnlt_charger/site/ (and tests/test_site_*.py,
+tests/site_fakes.py), modbus/commands.py (Commander._run_phase_direct) and
+the reconnect behaviour of modbus/client.py
+
+Portions are ported from evcc (https://github.com/evcc-io/evcc), master of
+20.11.2026, commit 82d37e922b2c0278d56eb90c5fdd3c0cd2c62175: core/loadpoint*.go,
+core/site*.go, core/circuit/circuit.go, core/prioritizer/prioritizer.go,
+util/grid/grid.go, util/modbus, api/ (types and interfaces). The phase-switch
+rule of Loadpoint.scalePhases is used in modbus/commands.py and
+modbus/sequences.py: while the charger is enabled (charging, an armed start, an
+open charge or Plug & Charge) a switch to 3 phases from a station not on 3
+phases first drops reg 91 to the minimum current, and 200 = 3 is written only
+if that write went out (scalePhases returns when setLimit fails); there is
+no drop before 3 -> 1; the whole-amp firmware class restarts at the minimum
+current when it goes to 3 phases. The user's current is put back afterwards. Each ported file carries a header naming evcc as the
+source. evcc core is published under the MIT License below.
+
+-----------------------------------------------------------------------------
+MIT License
+
+Copyright (c) evcc.io (andig, naltatis, premultiply)
+
+Permission is hereby granted, free of charge, to any person obtaining a copy
+of this software and associated documentation files (the "Software"), to deal
+in the Software without restriction, including without limitation the rights
+to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+copies of the Software, and to permit persons to whom the Software is
+furnished to do so, subject to the following conditions:
+
+The above copyright notice and this permission notice shall be included in all
+copies or substantial portions of the Software.
+
+THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
+SOFTWARE.
+-----------------------------------------------------------------------------
+
+The evcc charger drivers charger/em2go*.go are not MIT licensed; nothing of
+them is used in site/.

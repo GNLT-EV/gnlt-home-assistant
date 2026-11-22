@@ -25,7 +25,7 @@ from homeassistant.const import (
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .const import OCPP_ERRORS, OCPP_STATUSES
 from .logic import apparent_power_va
@@ -183,7 +183,7 @@ SENSORS: tuple[GnltSensorDescription, ...] = (
         # For the energy dashboard: built from the charger's own figures
         # (logic.ChargeLedger) - grows with the readings, and goes down once by
         # the difference when a charge's final figure is below its last
-        # reading (owner 04.10.2026: the final figure is what is recorded).
+        # reading.
         # "total" without last_reset: Home Assistant subtracts such a drop in
         # its hour; total_increasing would read a drop of over 10 % (a young
         # installation) as a new meter cycle.
@@ -287,6 +287,16 @@ SENSORS: tuple[GnltSensorDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "sensor")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "sensor")
+        return
     charger = entry.runtime_data
     currency = hass.config.currency
     async_add_entities(GnltSensor(charger, d, currency) for d in SENSORS)

@@ -2,11 +2,11 @@
 
 This module is plain asyncio + aiohttp - no Home Assistant imports - so the
 whole OCPP conversation can be exercised by a fake charger in the tests. Home
-Assistant attaches to a :class:`Charger` through ``add_listener`` and the
+Assistant attaches to a:class:`Charger` through ``add_listener`` and the
 command methods.
 
 What differs from a textbook OCPP central system, and why (details in the
-GNLT repository, ``CLAUDE.md`` -> "Нестандартная логика"):
+GNLT repository):
 
 * current is regulated with the vendor key ``ChargeRate`` (amps) through
   ``ChangeConfiguration`` - ``SetChargingProfile`` answers ``NotSupported``;
@@ -74,7 +74,7 @@ PING_INTERVAL_S = 45
 # idle charger sends nothing but a heartbeat.
 DEAD_AFTER_S = 135
 HEARTBEAT_INTERVAL_S = 300
-# Answers come in ~0.1 s, the slowest seen 1.9 s (26.09.2026).
+# Answers come in ~0.1 s, the slowest seen 1.9 s.
 CALL_TIMEOUT_S = 10
 # Commands that are safe to send twice: a lost one is repeated once. Not
 # RemoteStartTransaction / Reset (a double start or reboot) and not
@@ -84,11 +84,11 @@ RETRY_ACTIONS = frozenset(
     {"GetConfiguration", "TriggerMessage", "ChangeConfiguration", "ChangeAvailability"}
 )
 # Without a pause between ChangeConfiguration and RemoteStart the charger
-# loses the second command (live case 26.07.2026).
+# loses the second command.
 COMMAND_GAP_S = 2
 # The charger drops a frame that reaches it too soon after the previous one -
-# worst of all right after a message of its own: measured on the partner's bench
-# (26.09.2026, 15 tries per gap) a command right after the charger's own message
+# worst of all right after a message of its own: measured on a test installation
+# (15 tries per gap) a command right after the charger's own message
 # was answered 0/15 at 0 s, 10/15 at 0.1 s, 14/15 at 0.2-0.5 s, 15/15 from 0.75 s.
 # Every frame WE start (commands, our ping) waits this long after the last frame
 # on the line in either direction. Twice the measured threshold.
@@ -108,7 +108,7 @@ METER_STALE_S = 90
 # One charge, whether current flows or the car or the charger paused it.
 ACTIVE_STATUSES = ("Charging", "SuspendedEV", "SuspendedEVSE")
 # After StopTransaction the charger normally reports the new status within a
-# second. After an emergency stop (over current, 04.10.2026) it reported
+# second. After an emergency stop (over current) it reported
 # nothing: Home Assistant showed "Charging" at 0 kW for minutes, until the
 # status was asked for. Asked for after this pause.
 STATUS_AFTER_STOP_S = 8
@@ -136,7 +136,7 @@ class ChargerError(Exception):
 
 @dataclass
 class ChargerSettings:
-    """What the owner chose in Home Assistant."""
+    """What the user chose in Home Assistant."""
 
     max_current_a: int = 16
     phases: int = 1
@@ -156,7 +156,7 @@ def _end_reading(data: Any) -> float | None:
     StopTransaction came without meterStop (OCPP 1.6 ReadingContext
     "Transaction.End"). Never "Transaction.Begin": this charger puts the
     reading at the START of the charge (0) into every StopTransaction - taken
-    as current it zeroed "Energy of this charge" (partner's bench, 25.09.2026)."""
+    as current it zeroed "Energy of this charge"."""
     for mv in data if isinstance(data, list) else []:
         if not isinstance(mv, dict):
             continue
@@ -203,7 +203,7 @@ class Charger:
         if carried is not None and carried.number is None and carried.started is None and self.tx_id is not None:
             # A charge carried over from the old storage format: it is the open
             # session - its number and start let a late stop of an EARLIER
-            # charge be told apart from its own (platform review, 04.10.2026).
+            # charge be told apart from its own.
             carried.number = self.tx_id
             carried.started = self.tx_started_at.isoformat() if self.tx_started_at else None
 
@@ -246,7 +246,7 @@ class Charger:
         # A start the car did not take: the connector stayed in Finishing.
         self.empty_session = False
         # The charger sends StopTransaction about a second BEFORE the status
-        # Finishing (partner's bench, 25.09.2026). In that second the status is
+        # Finishing. In that second the status is
         # still Charging and no session is open - "charging without a session"
         # would flash at every stop, with a false "problem" in the logbook.
         self._stop_pending_status = False
@@ -259,11 +259,11 @@ class Charger:
         # Reserved / Unavailable / Faulted say nothing about the cable: the
         # cable sensor keeps its last known state through them. Unknown until
         # the first status: a False here showed "unplugged" for a few seconds
-        # at every start of Home Assistant (blind test, 26.09.2026).
+        # at every start of Home Assistant.
         self._cable: bool | None = None
         # The number the charger is actually charging under, from its
         # MeterValues. It is there even in a charge the charger started by
-        # itself (partner's bench, 25.09.2026: 20 and 22 while HA had no open
+        # itself (test installation: 20 and 22 while HA had no open
         # session) - the best number for "Interrupt charging".
         self.station_tx_id: int | None = None
         # Last frames in both directions, for the diagnostics download.
@@ -366,14 +366,14 @@ class Charger:
         task.add_done_callback(self._tasks.discard)
 
     def adopt(self, settings: ChargerSettings) -> None:
-        """Home Assistant took this charger under its care, or the owner
+        """Home Assistant took this charger under its care, or the user
         changed a setting.
 
         Only the first time is the charger set up again. A changed setting
         (schedule, price, auto start) sends nothing - re-reading the whole
         configuration on every switch flick sent GetConfiguration five times
         in a minute in the middle of a charge and could put the current back
-        (time audit, 04.10.2026). Only a changed reading interval is sent."""
+. Only a changed reading interval is sent."""
         first = not self.adopted
         interval_changed = settings.meter_interval_s != self.settings.meter_interval_s
         self.settings = settings
@@ -460,7 +460,7 @@ class Charger:
                 try:
                     # Our ping goes through the same gate as commands: a
                     # command sent in the same millisecond as the ping was lost
-                    # 4 of 4 (partner's bench, 26.09.2026).
+                    # 4 of 4.
                     async with self._call_lock:
                         await self._wait_quiet()
                         await ws.ping()
@@ -604,7 +604,7 @@ class Charger:
                     # StartTransaction will come, so this is where its money,
                     # count and energy begin. Counted once - a car flapping
                     # between Preparing and SuspendedEV without current is not
-                    # a charge (third review).
+                    # a charge.
                     self.session_cost = 0.0
                     self.totals.add_session(self._local(_now()))
                     self._new_charge_checks()
@@ -613,7 +613,7 @@ class Charger:
             # "car did not take the charge" state is over. NOT on Unavailable or
             # Preparing: those come from our own availability toggle while the
             # car still does not charge (the sensor went out after 1-5 s on the
-            # partner's bench, 25.09.2026, and the person never saw it).
+            # test installation, and the person never saw it).
             self.empty_session = False
         if status != "Charging":
             # The charger stops sending readings outside a charge; stale power
@@ -700,13 +700,11 @@ class Charger:
 
         After a finished charge, with the cable still in the car, the charger
         accepts a start and opens a transaction, and then it depends on the
-        CAR. Often the current flows (the GNLT platform saw the opposite once,
-        04.09.2026, and banned such starts - a test partner showed three out of
-        four worked, 24.09.2026); sometimes - typically after a long idle, when
+        CAR. Often the current flows (the GNLT platform saw the opposite once); sometimes - typically after a long idle, when
         the car has gone to sleep - no current flows.
 
-        ‼️ The connector does NOT stay only in ``Finishing``. Live test of the
-        partner, 25.09.2026: after two hours of idle the status was
+        ‼️ The connector does NOT stay only in ``Finishing``. On a test
+        installation: after two hours of idle the status was
         ``Preparing``, and a check for ``Finishing`` alone missed it. Car-side
         pauses (``SuspendedEV``) and station-side ones (``SuspendedEVSE``) are
         legitimate states and are left alone.
@@ -727,15 +725,14 @@ class Charger:
         await self._close_empty_session(tx)
 
     async def _close_empty_session(self, tx: int) -> None:
-        """Only the polite stop. 🔴 No availability toggle any more (0.2.3,
-        owner's decision 25.09.2026).
+        """Only the polite stop. 🔴 No availability toggle any more (0.2.3).
 
         Until 0.2.2 a refused stop was followed by ChangeAvailability
         Inoperative -> Operative. The charger accepted it and closed the
         session, but the car still took no current, new starts were still
-        rejected until the cable was re-plugged - and the partner's bench
+        rejected until the cable was re-plugged - and a test installation
         recorded eight times that the charger then STARTED CHARGING BY ITSELF,
-        outside any transaction, as soon as the car woke up (25.09.2026). The
+        outside any transaction, as soon as the car woke up. The
         GNLT platform dropped the same trick the same day.
 
         So the session stays open: if the car wakes up, the charge goes on under
@@ -786,8 +783,8 @@ class Charger:
             self._finish_session(at, record)
         elif self.tx_id is not None:
             # 🔴 The charger sometimes runs a charge under the number of an
-            # EARLIER session, not the one we gave it (partner's bench,
-            # 25.09.2026: after a quick card start-stop it lost StopTransaction
+            # EARLIER session, not the one we gave it (test installation,
+            # after a quick card start-stop it lost StopTransaction
             # for 20 and ran the next card charge, given 21, as 20). Ignoring such
             # a stop left 21 open for ever: the switch stuck "on", a stop from HA
             # was rejected, and three minutes later the empty-session check
@@ -906,7 +903,7 @@ class Charger:
         if not self.adopted or not self.connected:
             return
         # The charger's own charge paused by itself (SuspendedEVSE) is still a
-        # charge: no start into it (time audit, 04.10.2026).
+        # charge: no start into it.
         charging = self.tx_id is not None or self.status == "Charging" or self._own_charge_open
         if charging and was_open and not is_open and schedule.enabled and schedule.stop_at_end:
             _LOGGER.info("%s: schedule window closed, stopping", self.identity)
@@ -919,8 +916,8 @@ class Charger:
             # The window has just opened and the cable stayed in the car after
             # an earlier charge. plugged_idle() refuses this Finishing (it would
             # wake a full car every three minutes), so the schedule never
-            # started while the cable stayed in for days (partner's bench,
-            # 25.09.2026, 19:48). Once, at the opening only - the same rule as
+            # started while the cable stayed in for days (test installation,
+            # ). Once, at the opening only - the same rule as
             # the GNLT platform. A car that sleeps and
             # takes nothing is caught by _watch_start.
             await self._auto_start()
@@ -1093,7 +1090,7 @@ class Charger:
                 self._pending.pop(msg_id, None)
 
     async def _setup_after_boot(self) -> None:
-        """Read the configuration and bring the charger to the owner's settings."""
+        """Read the configuration and bring the charger to the user's settings."""
         if not self.adopted:
             return
         await asyncio.sleep(COMMAND_GAP_S)
@@ -1118,7 +1115,7 @@ class Charger:
             # The charger sends readings by itself only while charging: after a
             # Home Assistant restart voltage, current and temperature stayed
             # "unknown" until "Refresh readings" was pressed (blind tests,
-            # 25-26.09.2026). Ask once.
+            # ). Ask once.
             try:
                 await self.call("TriggerMessage", {"requestedMessage": "MeterValues", "connectorId": 1}, timeout=15)
             except ChargerError as err:
@@ -1162,7 +1159,7 @@ class Charger:
         if self.status == "Unavailable":
             raise ChargerError("unavailable")
         if self.empty_session:
-            # Live test 25.09.2026: after an empty session the charger REJECTS
+            # after an empty session the charger REJECTS
             # new starts, and toggling the connector does not wake the car.
             # Only re-plugging the cable helps - say so instead of trying.
             raise ChargerError("replug")
@@ -1175,7 +1172,7 @@ class Charger:
         res = await self.call("RemoteStartTransaction", {"connectorId": 1, "idTag": ID_TAG})
         if res.get("status") != "Accepted":
             # With the cable in, a refusal is usually a car that fell asleep
-            # (26.09.2026): say how to wake it rather than just "rejected".
+            # say how to wake it rather than just "rejected".
             raise ChargerError("start_rejected" if self.cable_connected else "rejected", str(res.get("status")))
 
     async def _auto_start(self) -> None:
@@ -1195,7 +1192,7 @@ class Charger:
             # Nothing is charging and no session is open (or only the empty one
             # the car did not take): nothing to stop. A schedule turning the
             # switch off must not fail with the text about a charge "started by
-            # the charger itself" (partner's bench, 25.09.2026).
+            # the charger itself".
             return
         tx = self.tx_id
         if tx is None and self.last_tx_id is not None and self.last_tx_at and _now() - self.last_tx_at < LAST_TX_MAX_AGE:
@@ -1219,7 +1216,7 @@ class Charger:
             # no charge of the charger's own sends nothing.
             raise ChargerError("nothing_to_interrupt")
         # The polite stop first, by every number the charger may be using. On
-        # the partner's bench (25.09.2026) every charge the charger started by
+        # a test installation every charge the charger started by
         # itself stopped this way, twice by a number other than its own. A
         # rejected number costs nothing; the connector is taken out of service
         # only if all of them are refused.
@@ -1266,6 +1263,6 @@ class Charger:
     async def refresh(self) -> None:
         await self.call("TriggerMessage", {"requestedMessage": "MeterValues", "connectorId": 1}, timeout=15)
         # Back to back, the charger drops the second request (3 of 3 on the
-        # partner's bench, 24.09.2026); with a 2 s gap - 3 of 3 answered.
+        # test installation); with a 2 s gap - 3 of 3 answered.
         await asyncio.sleep(COMMAND_GAP_S)
         await self.call("TriggerMessage", {"requestedMessage": "StatusNotification", "connectorId": 1}, timeout=15)

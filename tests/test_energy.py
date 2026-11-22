@@ -37,7 +37,7 @@ def test_one_charge_is_the_chargers_final_figure():
 
 
 def test_two_charges_add_up():
-    """Live 04.10.2026: 890 Wh, then 15 360 Wh."""
+    """Live: 890 Wh, then 15 360 Wh."""
     led = ChargeLedger()
     clock = Clock()
     charge(led, [0, 400, 880], meter_stop=890, number=1, clock=clock)
@@ -66,7 +66,7 @@ def test_idle_register_is_not_energy():
 
 
 def test_final_figure_below_the_last_reading_is_what_is_recorded():
-    """Owner 04.10.2026: the charger's final figure is the record; the
+    """The charger's final figure is the record; the
     difference is taken back once, in its own charge - never from the next."""
     led = ChargeLedger()
     clock = Clock()
@@ -340,7 +340,7 @@ def test_storage_round_trip_keeps_everything():
     assert again.as_dict() == led.as_dict()
 
 
-# --- the register wraps (HW:B07, 25.10.2026): readings go on from 0 after
+# --- the register wraps (HW:B07): readings go on from 0 after
 # 65 535 Wh, the final figure is the charger's whole count -------------------
 
 WRAP_1236 = [(0, 0), (600, 20000), (1800, 60000), (2700, 65190), (2762, 65400), (2823, 44), (2885, 224), (3500, 1304)]
@@ -357,7 +357,7 @@ def timed_charge(points, meter_stop, meter_start=0.0, stop_after=37, number=1, l
 
 
 def test_wrapped_readings_with_the_whole_final_count_once():
-    """Partner's charge 1236 (SW:A3B_3.1-HW:B07_0.5): 65 400 -> 44 -> ... ->
+    """Partner's charge 1236 (SW:A3B_3.1-HW:B07_0.5): 65 400 -> 44 ->... ->
     1 304, meterStop 66 840 = 65 536 + 1 304. Was counted 132 240."""
     led, rec = timed_charge(WRAP_1236, 66840)
     assert rec.energy_wh == 66840
@@ -443,7 +443,7 @@ def test_wrap_in_a_charge_open_during_the_update():
 
 
 def test_low_readings_that_return_within_minutes_count_once():
-    """Shared scenario double-dip-returns (26.10.2026): 30 000 -> 100 -> 200 ->
+    """Shared scenario double-dip-returns: 30 000 -> 100 -> 200 ->
     30 100 a minute apart. A restart cannot grow to 30 100 in 3 minutes."""
     led, rec = timed_charge([(0, 0), (3000, 30000), (3060, 100), (3120, 200), (3180, 30100)], 30500)
     assert rec.energy_wh == 30500
@@ -463,8 +463,8 @@ def test_low_readings_that_stay_low_are_a_restart_at_once():
 # A drop of the register adds the count before it only when the charger showed
 # it forgot that count: no later figure came back to it, or it announced a
 # restart (BootNotification) right before the drop. Otherwise one figure of the
-# charger is taken, marked "possible data loss" (owner, 27.10.2026).
-STAND_19 = [(0, 0), (31, 90), (62, 180), (93, 330)]  # breaker 20 s at 330 (stand, 05.10.2026)
+# charger is taken, marked "possible data loss".
+STAND_19 = [(0, 0), (31, 90), (62, 180), (93, 330)]  # breaker 20 s at 330
 STAND_19_AFTER = [(124, 30), (155, 120), (186, 210), (217, 300), (468, 1050), (499, 1140), (530, 1230), (561, 1320), (592, 1410)]
 
 
@@ -488,7 +488,7 @@ def test_low_readings_then_a_lost_link_take_the_final_figure():
 
 def test_a_restart_announced_by_the_charger_adds_both_parts():
     """The charger sent BootNotification, then counted from 0 past its old
-    count: it forgot the 330 before - both parts, as on the stand."""
+    count: it forgot the 330 before - both parts, as seen on a charger."""
     led = ChargeLedger(max_power_w=22000)
     led.start(0, 1, at(0))
     for sec, v in STAND_19:
@@ -512,8 +512,7 @@ def test_a_count_past_the_old_one_without_a_restart_message_is_one_figure():
 
 
 def test_a_reconnect_with_the_count_going_on_is_not_a_restart():
-    """BootNotification after a lost link, the count goes on (live 04.10.2026,
-    13:33); a later false dip is still not counted twice."""
+    """BootNotification after a lost link, the count goes on (13:33); a later false dip is still not counted twice."""
     led = ChargeLedger(max_power_w=22000)
     led.start(0, 1, at(0))
     for sec, v in ((0, 0), (3000, 30000)):
@@ -527,8 +526,7 @@ def test_a_reconnect_with_the_count_going_on_is_not_a_restart():
 
 def test_a_doubtful_drop_keeps_the_other_parts():
     """Two restarts without BootNotification, a short count of 300 between
-    them: only the 300 is in doubt - the 20 000 is not thrown away (review,
-    27.10.2026: was 20 000)."""
+    them: only the 300 is in doubt - the 20 000 is not thrown away."""
     points = [(0, 0), (3600, 20000), (3631, 0), (3662, 100), (3693, 300), (3724, 0), (3755, 100), (8000, 5000)]
     _, rec = timed_charge(points, 5000)
     assert rec.energy_wh == 25000

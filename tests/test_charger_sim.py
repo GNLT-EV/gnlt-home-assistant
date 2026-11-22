@@ -92,7 +92,7 @@ def test_live_one_phase_frame_has_no_mismatch():
 
 
 def test_emergency_stop_without_status_asks_for_status():
-    """Live 04.10.2026 01:00: over current -> StopTransaction EmergencyStop and
+    """Live 01:00: over current -> StopTransaction EmergencyStop and
     no StatusNotification. Home Assistant must ask for the status."""
 
     async def go():
@@ -200,7 +200,7 @@ def test_frames_are_in_the_debug_log(caplog):
 
 def test_charge_started_by_the_charger_through_suspended_ev():
     """Preparing -> SuspendedEV (car waking up) -> Charging, no transaction
-    (independent review)."""
+."""
 
     async def go():
         async with Bench() as (c, st):
@@ -235,8 +235,8 @@ def test_late_stop_of_a_charge_started_by_the_charger():
             await st.send("StopTransaction", {"meterStop": 440, "reason": "Local", "timestamp": "2026-10-04T01:02:00+02:00"})
             for wh in (0, 100):
                 await st.meter(meter(wh, THREE))
-            # A is recorded at the charger's final figure, 440 (owner
-            # 04.10.2026; was its last reading, 470), + B 100.
+            # A is recorded at the charger's final figure, 440 (its last
+            # reading was 470), + B 100.
             assert c.energy.total_wh == 540, c.energy.total_wh
 
     run(go())
@@ -307,7 +307,7 @@ def test_diagnostics_file_is_json(monkeypatch):
             await st.meter(meter(500, THREE))
             entry = Entry()
             entry.runtime_data = c
-            entry.data = {"identity": "102512111615", "port": 9000, "preset": "3_11", "password": "x", "ssid": "y"}
+            entry.data = {"identity": "101234567891", "port": 9000, "preset": "3_11", "password": "x", "ssid": "y"}
             entry.options = {}
             monkeypatch.setattr(diag, "async_get_integration", integration)
             out = await diag.async_get_config_entry_diagnostics(None, entry)
@@ -319,8 +319,8 @@ def test_diagnostics_file_is_json(monkeypatch):
 
 
 def test_late_stop_of_an_earlier_transaction_after_the_next_start():
-    """Partner's bench 25.09: StopTransaction of the OLD number after the next
-    StartTransaction (second review). It ended before the new one began."""
+    """Seen on a test installation: StopTransaction of the OLD number after the next
+    StartTransaction. It ended before the new one began."""
 
     async def go():
         async with Bench() as (c, st):

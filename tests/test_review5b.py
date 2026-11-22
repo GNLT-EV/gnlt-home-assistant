@@ -1,4 +1,4 @@
-"""Review 5, round 2: the fixes of the coordinator. Expected = correct
+""", round 2: the fixes of the coordinator. Expected = correct
 behaviour; a failure = a finding."""
 
 import asyncio
@@ -67,7 +67,7 @@ def test_n1_stop_queued_during_the_upgrade_restart():
 
 
 # N2: the idle-register rule only knows "value == final". Final below the
-# last reading (the owner's rule-2 case) and the idle register shows the last
+# last reading and the idle register shows the last
 # reading - is it a new charge from 0?
 
 
@@ -81,7 +81,7 @@ def test_n2_idle_register_equal_to_last_reading_not_final():
     assert led.total_wh == 460, led.total_wh
 
 
-# N3: the same with a kWh register (other firmware): 2.01 kWh * 1000 is
+# The same with a kWh register (other firmware): 2.01 kWh * 1000 is
 # 2009.9999999999998, not 2010.
 
 

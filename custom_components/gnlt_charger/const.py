@@ -11,6 +11,18 @@ CONF_AUTO_START = "auto_start"
 CONF_RESUME = "resume_after_power_loss"
 CONF_METER_INTERVAL = "meter_interval"
 
+# ModBus TCP entries (modbus/): marked by the transport, serial under its own
+# key so OCPP code that reads "identity" never sees them. Entries without the
+# key are OCPP and take the unchanged path.
+CONF_TRANSPORT = "transport"
+TRANSPORT_MODBUS = "modbus"
+CONF_SERIAL = "serial"
+
+# GNLT site entries (site/): DLM + PV for several ModBus stations. Marked by
+# the kind; they have no transport and no station of their own.
+CONF_KIND = "kind"
+KIND_SITE = "site"
+
 # Schedule - one window, changed from the device page (time/select entities).
 CONF_SCHEDULE = "schedule"
 CONF_SCHEDULE_START = "schedule_start"  # "HH:MM"

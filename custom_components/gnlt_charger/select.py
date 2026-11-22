@@ -6,7 +6,7 @@ from homeassistant.components.select import SelectEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .const import CONF_SCHEDULE_DAYS
 from .entity import GnltEntity
@@ -16,6 +16,16 @@ from .logic import DAY_SCOPES
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "select")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "select")
+        return
     async_add_entities([ScheduleDays(entry.runtime_data, entry)])
 
 

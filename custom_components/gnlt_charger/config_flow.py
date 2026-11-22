@@ -58,6 +58,7 @@ from .ble import BleError, discovered_chargers, looks_like_charger, provision
 from .const import (
     CONF_AUTO_START,
     CONF_IDENTITY,
+    CONF_KIND,
     CONF_METER_INTERVAL,
     CONF_NIGHT_END,
     CONF_NIGHT_PRICE,
@@ -67,13 +68,16 @@ from .const import (
     CONF_PRICE,
     CONF_RESUME,
     CONF_SCHEDULE,
+    CONF_TRANSPORT,
     DEFAULT_METER_INTERVAL,
     DEFAULT_NIGHT_END,
     DEFAULT_NIGHT_START,
     DEFAULT_PORT,
     DEFAULT_PRESET,
     DOMAIN,
+    KIND_SITE,
     OCPP_PATH,
+    TRANSPORT_MODBUS,
 )
 from .protocol import (
     AC_PRESETS,
@@ -102,7 +106,7 @@ PRESET_KEYS = [preset_key(ph, kw) for ph, kw, _a in AC_PRESETS]
 def _preset_key(known: str | None) -> vol.Marker:
     """The charger version must be chosen by the person unless the charger told
     it itself: a preselected "1 phase 7 kW - 32 A" let a buyer who just clicked
-    through get a 32 A slider on a 16 A unit (blind test, 25.09.2026).
+    through get a 32 A slider on a 16 A unit.
     Optional on purpose: for a required field with no default the frontend
     preselects the first option itself; the step checks the choice instead."""
     return vol.Required(CONF_PRESET, default=known) if known else vol.Optional(CONF_PRESET)
@@ -130,7 +134,7 @@ async def _lan_address(hass: Any) -> str:
     if it is a plain IP: the charger cannot resolve ``homeassistant.local``.
     Otherwise the address of the interface Home Assistant goes out through. In
     Docker without host networking that is the container's own 172.x address,
-    which the charger cannot reach (partner's bench, 25.09.2026) - the internal
+    which the charger cannot reach - the internal
     URL is the way to fix it, and the wizard text says so.
     """
     url = hass.config.internal_url
@@ -171,6 +175,14 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
     @staticmethod
     @callback
     def async_get_options_flow(config_entry: ConfigEntry) -> OptionsFlow:
+        if config_entry.data.get(CONF_KIND) == KIND_SITE:
+            from .site.config_flow import SiteOptionsFlow
+
+            return SiteOptionsFlow()
+        if config_entry.data.get(CONF_TRANSPORT) == TRANSPORT_MODBUS:
+            from .modbus.config_flow import ModbusOptionsFlow
+
+            return ModbusOptionsFlow()
         return GnltOptionsFlow()
 
     def _server_port(self) -> int | None:
@@ -185,7 +197,7 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
             self._address = user_input[CONF_ADDRESS]
             self._ble_name = user_input.get(CONF_NAME) or self._address
             return await self.async_step_wifi()
-        return self.async_show_menu(step_id="user", menu_options=["pick_device", "manual"])
+        return self.async_show_menu(step_id="user", menu_options=["pick_device", "manual", "modbus_intro", "site"])
 
     async def async_step_bluetooth(self, discovery_info: BluetoothServiceInfoBleak) -> ConfigFlowResult:
         """A charger in Bluetooth mode is near a Home Assistant adapter or proxy."""
@@ -284,7 +296,7 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
         default_host = previous.get(CONF_HOST) or await _lan_address(self.hass)
         schema: dict[Any, Any] = {
             # Without autocomplete hints the browser fills in the login and
-            # password it keeps for Home Assistant itself (stand, 27.09.2026).
+            # password it keeps for Home Assistant itself.
             vol.Required(CONF_SSID, default=previous.get(CONF_SSID, "")): TextSelector(
                 TextSelectorConfig(autocomplete="off")
             ),
@@ -473,6 +485,40 @@ class GnltConfigFlow(ConfigFlow, domain=DOMAIN):
             step_id="manual_address",
             description_placeholders={"url": f"ws://{ip}:{self._port}{OCPP_PATH}", "serial": self._identity or ""},
         )
+
+    # --- ModBus TCP (modbus/config_flow.py, imported only here) ----------------------
+
+    async def async_step_modbus_intro(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .modbus.config_flow import async_step_intro
+
+        return await async_step_intro(self, user_input)
+
+    async def async_step_modbus_address(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .modbus.config_flow import async_step_address
+
+        return await async_step_address(self, user_input)
+
+    async def async_step_modbus_model(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .modbus.config_flow import async_step_model
+
+        return await async_step_model(self, user_input)
+
+    # --- GNLT site: DLM + PV for several ModBus stations (site/config_flow.py) --------
+
+    async def async_step_site(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .site.config_flow import async_step_site
+
+        return await async_step_site(self, user_input)
+
+    async def async_step_site_member(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .site.config_flow import async_step_member
+
+        return await async_step_member(self, user_input)
+
+    async def async_step_site_pv(self, user_input: dict[str, Any] | None = None) -> ConfigFlowResult:
+        from .site.config_flow import async_step_pv
+
+        return await async_step_pv(self, user_input)
 
     # --- a charger that came by itself ----------------------------------------------
 

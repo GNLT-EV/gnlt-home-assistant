@@ -19,6 +19,8 @@ bezpośrednio w Twojej sieci domowej, bez chmury.
 - Liczba faz, którymi w danej chwili ładuje się samochód
 - Plik diagnostyczny dla pomocy technicznej
 - Połączenie ładowarki przez Bluetooth lub ręczne
+- Tryb ModBus TCP jako alternatywa dla OCPP
+- Zarządzanie mocą i ładowanie z PV dla kilku ładowarek ModBus (beta)
 - Języki: angielski, polski, rosyjski
 
 ## Czego potrzebujesz
@@ -53,7 +55,7 @@ Nowe wersje pojawią się w **Ustawienia** → **System** → **Aktualizacje**.
    że Wi-Fi jest włączone, wyłącz **OCPP** i wyjdź z menu.
 2. W Home Assistant otwórz **Ustawienia** → **Urządzenia oraz usługi** → **Dodaj integrację**.
 3. W wyszukiwarce wpisz `GNLT` i wybierz **GNLT EV Charger**.
-4. Wybierz **Skonfiguruj ładowarkę przez Bluetooth (zalecane)**.
+4. Wybierz **Skonfiguruj ładowarkę przez Bluetooth (OCPP, zalecane)**.
 5. W polu **Ładowarka** wybierz swoją ładowarkę – jej numer seryjny jest na obudowie – i kliknij **Zatwierdź**. Jeśli
    zobaczysz „Nie znaleziono ładowarki”, sprawdź, czy OCPP na ładowarce jest wyłączone, a aplikacja EV-Charger
    zamknięta, przysuń adapter Bluetooth (albo komputer z Home Assistantem, jeśli ma wbudowany Bluetooth) bliżej
@@ -112,7 +114,7 @@ Użyj tego sposobu, jeśli Home Assistant nie ma Bluetootha.
    aplikacja nie znajduje ładowarki, wyłącz OCPP na ładowarce. Upewnij się, że Wi-Fi na ładowarce jest włączone.
 2. W Home Assistant otwórz **Ustawienia** → **Urządzenia oraz usługi** → **Dodaj integrację**.
 3. W wyszukiwarce wpisz `GNLT` i wybierz **GNLT EV Charger**.
-4. Wybierz **Ładowarka jest już w sieci — wprowadź jej numer**.
+4. Wybierz **OCPP: ładowarka jest już w sieci — wprowadź jej numer**.
 5. Wpisz **Numer seryjny** (12 cyfr z obudowy ładowarki) i wybierz **Wersja ładowarki** – liczbę faz i moc, jak
    na tabliczce znamionowej ładowarki. Jeśli jest pole **Port dla ładowarek**, pozostaw `9000` (jeśli port jest
    zajęty – `9001`, jak w kroku 6 sekcji o Bluetooth). Kliknij **Zatwierdź**.
@@ -158,13 +160,113 @@ Użyj tego sposobu, jeśli Home Assistant nie ma Bluetootha.
 5. Na ładowarce naciśnij **OK**, wybierz **Wi-Fi**, włącz **OCPP** i wyjdź z menu. Ładowarka połączy się z aplikacją
    EV-Charger.
 
+## Tryb ModBus
+
+Zamiast przez OCPP ładowarkę można dodać przez **ModBus TCP** w sieci lokalnej. ModBus ustawia prąd
+i przełącza między 1 a 3 fazami.
+
+**Przygotowanie ładowarki** (to samo pokazuje kreator):
+
+1. Połącz ładowarkę z Wi-Fi (2,4 GHz) w aplikacji ładowarki przez Bluetooth – przed włączeniem ModBus. Zarezerwuj jej
+   adres IP w routerze. ModBus TCP działa tylko przez Wi-Fi i nie działa razem z EM3-Box.
+2. Menu ładowarki **Load & communication**: równoważenie obciążenia włączone, tryb komunikacji **ModBus TCP**. OCPP
+   i ModBus wykluczają się wzajemnie: ładowarka pracuje w danej chwili tylko w jednym z tych trybów.
+3. Menu **Current adjustment** ustawione na maksimum: ładowarka stosuje niższą z dwóch wartości – tę albo limit
+   ustawiony w Home Assistant.
+4. Menu **Charge mode**: wyłącz Plug & charge, jeśli to Home Assistant ma decydować, kiedy ładować (fabrycznie jest
+   włączony).
+5. Własne rezerwacje ładowarki wyłączone; w ładowarce ustawione data i godzina.
+6. Tryb „1-phase mode” ładowarki wyłączony, jeśli chcesz przełączać między 1 a 3 fazami.
+7. Tylko jeden program ModBus naraz: ładowarka przyjmuje jedno połączenie ModBus. Wyłącz evcc, inne integracje
+   i wszelkie urządzenia korzystające z portu 502 ładowarki.
+
+**Dodanie ładowarki:**
+
+1. W Home Assistant otwórz **Ustawienia** → **Urządzenia oraz usługi** → **Dodaj integrację**.
+2. Wpisz `GNLT` w wyszukiwarce i wybierz **GNLT EV Charger**.
+3. Wybierz **ModBus TCP (sieć lokalna)** i kliknij **Zatwierdź**.
+4. Wpisz adres IP ładowarki (widoczny w menu Wi-Fi ładowarki) i pozostaw port `502`. Kliknij **Zatwierdź**.
+5. Sprawdź wersję ładowarki – liczbę faz i moc, jak na tabliczce znamionowej. Kliknij **Zatwierdź**.
+
+**Oprogramowanie.** Zatrzymanie ładowania i zmiana faz w trakcie ładowania przez ModBus wymagają oprogramowania 3.1 lub
+nowszego (wersja jest widoczna na ekranie ładowarki). Przy starszym oprogramowaniu, na przykład 2.7, ładowarka nie
+zatrzymuje się po poleceniu zatrzymania: obniża prąd do minimum i nie przyjmuje nowych poleceń, dopóki kabel nie
+zostanie odłączony od samochodu. Aby zatrzymać ładowanie przy takim oprogramowaniu, odłącz kabel od samochodu. Aby mieć
+pełne sterowanie, użyj połączenia OCPP.
+
+**Encje:** stan, komunikat ładowarki, kabel, moc, moc pozorna, moc L1–L3, prądy i napięcia L1–L3, liczba aktywnych faz,
+energia ładowania i energia całkowita (panel „Energia”), ceny i koszty, energia i koszt dziś oraz w tym miesiącu,
+ostatnie ładowanie, harmonogram, start po podłączeniu kabla, kontynuacja po zaniku zasilania, „Podłącz i ładuj”, limit
+prądu, włączanie i wyłączanie ładowania, fazy 1/3, odświeżanie odczytów, przycisk **Wyłącz „Podłącz i ładuj”
+i zatrzymaj**, powiadomienia i diagnostyka. Encje diagnostyczne: prąd zadany ładowarki, prąd minimalny, maksymalny
+i maksymalny prąd kabla, licznik ładowarki, czas ładowania, błędy połączenia i „Zatrzymanie nie działa”.
+„Zatrzymanie nie działa” włącza się, gdy ładowarka ładuje dalej po poleceniu zatrzymania (oprogramowanie starsze
+niż 3.1).
+
+**Niedostępne przez ModBus:** ponowne uruchomienie ładowarki, „Przerwij ładowanie”, temperatura, wersja
+oprogramowania, poziom naładowania samochodu oraz konfiguracja przez Bluetooth, gdy ModBus jest włączony.
+
+**Częstotliwość odczytu.** Home Assistant odczytuje ładowarkę co 10 sekund. Aby to zmienić: **Ustawienia** →
+**Urządzenia oraz usługi** → **GNLT EV Charger** → wpis ModBus → **Konfiguruj** → „Co ile sekund Home Assistant
+odczytuje ładowarkę”.
+
+**Przełączanie między OCPP a ModBus.** Jedna ładowarka może mieć dwa wpisy: wpis OCPP i wpis ModBus. Działa ten wpis,
+którego tryb jest aktywny w ładowarce; drugi pokazuje ładowarkę jako niepołączoną. Aby przełączyć, zmień tryb w menu
+ładowarki: dla ModBus – **Load & communication** → ModBus TCP; dla OCPP – wyłącz tam ModBus TCP i włącz **OCPP**
+w menu **Wi-Fi**. Nieużywany wpis możesz wyłączyć. W panelu „Energia” używaj tylko jednego czujnika **Energia
+całkowita (HA)**.
+
+**Warto wiedzieć (ModBus)**
+
+- **Wi-Fi:** 2,4 GHz, tylko WPA2, najlepiej osobna nazwa sieci bez roamingu w sieci mesh i stały adres IP.
+- **„Podłącz i ładuj”:** gdy ten tryb jest włączony, ładowarka sama rozpoczyna ładowanie zaraz po podłączeniu kabla.
+  Po zaniku zasilania ładowarka może go ponownie włączyć – Home Assistant zaproponuje naprawę jednym kliknięciem.
+  Przycisk **Wyłącz „Podłącz i ładuj” i zatrzymaj** robi obie rzeczy naraz.
+- **Automatyczne starty** (start po podłączeniu kabla, harmonogram, kontynuacja po zaniku zasilania) następują co
+  najmniej co 3 minuty. Start ręczny nie jest ograniczony.
+- **Zatrzymanie bez ModBus:** w aplikacji samochodu, w aplikacji ładowarki przez Bluetooth (po wyłączeniu ModBus) albo
+  przez odłączenie kabla.
+
+**Jeśli ładowarka nie odpowiada** (po kolei): odczekaj 3 minuty → sprawdź, czy nie jest połączony inny program lub
+urządzenie ModBus → w menu ładowarki wyłącz i włącz ModBus TCP lub równoważenie obciążenia → wyłącz zasilanie ładowarki na
+co najmniej 10 sekund i odczekaj około 20 sekund. Przywrócenie ustawień fabrycznych kasuje także ustawienia ModBus.
+
+## Zarządzanie mocą i PV dla kilku ładowarek (beta)
+
+> **Beta.** To nowa funkcja. Nie zastępuje zabezpieczeń elektrycznych instalacji: wyłączniki nadprądowe pozostają bez
+> zmian. Chętnie poznamy Twoją opinię – zobacz [Pomoc](#pomoc).
+
+**Instalacja GNLT** steruje razem kilkoma ładowarkami dodanymi przez ModBus:
+
+- żadna faza przyłącza nie przekracza ustawionego limitu bezpiecznika – instalacja mierzy prąd sieci na każdej fazie
+  i dzieli wolny prąd między ładowarki;
+- każda ładowarka może ładować z nadwyżki PV.
+
+Na stronie urządzenia każdej ładowarki wybierz **Tryb ładowania**: **Wyłączony**, **Szybki**, **Min + PV** lub **PV**.
+
+**Czego potrzebujesz:** ładowarek dodanych przez ModBus i jednego czujnika prądu na każdą fazę sieci w Home Assistant
+(w amperach, pobór dodatni, oddawanie ujemne). Czujnik mocy sieci jest opcjonalny: bez niego moc sieci jest liczona
+z trzech prądów × 230 V.
+
+**Dodanie instalacji:**
+
+1. W Home Assistant otwórz **Ustawienia** → **Urządzenia oraz usługi** → **Dodaj integrację**.
+2. Wpisz `GNLT` w wyszukiwarce i wybierz **GNLT EV Charger**.
+3. Wybierz **Instalacja GNLT: zarządzanie mocą i PV dla kilku ładowarek ModBus (beta)**.
+4. Wybierz czujniki prądu sieci, wpisz limit bezpiecznika na fazę, wybierz ładowarki instalacji i kliknij
+   **Zatwierdź**. Następnie ustaw priorytet i fazę sieci każdej ładowarki oraz ustawienia PV.
+
+Jeśli licznik sieci przestanie przesyłać wartości, instalacja zrobi to, co ustawiono w „Przy awarii licznika sieci”.
+
+Jeśli Home Assistant lub sieć przestanie działać, każda ładowarka utrzymuje ostatni prąd; ochroną pozostaje wyłącznik nadprądowy instalacji.
+
 ## Warto wiedzieć
 
 - Nazwy czujników i przełączników ładowarki są wyświetlane w języku Home Assistanta wybranym w ustawieniach systemu.
 - Do panelu „Energia” dodaj czujnik **Energia całkowita (HA)**: uwzględnia wszystkie ładowania, także te rozpoczęte przez samą ładowarkę.
   Liczy energię od chwili dodania ładowarki do Home Assistanta; „Total” na ekranie ładowarki to energia od początku jej pracy.
 - W ładowarkach, w których wersja oprogramowania zawiera `HW:B07` (na przykład `SW:A3B_2.7-HW:B07_0.4` lub
-  `SW:A3B_3.1-HW:B07_0.5`; wersję oprogramowania widać na stronie urządzenia w Home Assistancie), przy ładowaniu
+  `SW:A3B_3.1-HW:B07_0.5`; wersję oprogramowania widać na stronie urządzenia w Home Assistancie w trybie OCPP), przy ładowaniu
   trójfazowym ładowarka podaje moc tylko jednej fazy. Czujnik **Moc** pokazuje wtedy sumę U×I wszystkich faz (wartość
   obliczona); wartość podana przez samą ładowarkę znajduje się w atrybutach czujnika.
 - Po utracie połączenia ładowarka jest jeszcze przez około dwie minuty widoczna jako połączona.

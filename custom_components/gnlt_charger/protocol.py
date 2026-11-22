@@ -5,10 +5,10 @@ checks. The app is the source of truth and carries the history of every rule
 below; this module must stay pure (no Home Assistant, no bleak) so
 it can be tested without hardware.
 
-Frame layout (both directions)::
+Frame layout (both directions):
 
-    request:  AA | LEN | ID   | payload... | SUM
-    reply:    A5 | LEN | code | payload... | SUM
+    request: AA | LEN | ID | payload... | SUM
+    reply: A5 | LEN | code | payload... | SUM
 
 ``LEN`` counts the bytes AFTER itself (ID + payload + SUM); ``SUM`` is the sum
 of every previous byte modulo 256. Reply code = ID + 0x80 on success,
@@ -42,7 +42,7 @@ class Cmd:
     OCPP_CHARGE_ID = 0x1E
     OCPP_URL = 0x1F
     # 0x21 "enable OCPP" is in the vendor document but does NOT exist in any
-    # firmware (vendor answer 17.09.2026). OCPP is switched on by hand, on the
+    # firmware. OCPP is switched on by hand, on the
     # charger screen. Never send it.
 
 
@@ -233,7 +233,7 @@ class DeviceInfo:
 
 
 def parse_device_info(payload: bytes) -> DeviceInfo | None:
-    """Layout decoded from a live charger on 31.08.2026.
+    """Layout decoded from a live charger on.
 
     First three bytes - the series in letters (``EVB``); the last six - the
     serial number where every byte READS AS TWO DECIMAL DIGITS in hex
@@ -266,7 +266,7 @@ class StationState:
 
 def parse_station_state(payload: bytes) -> StationState | None:
     """Reply to READ_STATE. ``max_current_a`` is the HARDWARE limit of the unit
-    (vendor, 17.09.2026), so it is what the passport is filled from."""
+    (vendor), so it is what the passport is filled from."""
     if len(payload) < 29:
         return None
 

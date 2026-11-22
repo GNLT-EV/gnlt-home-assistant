@@ -1,4 +1,4 @@
-"""Review 5, round 3: long-term statistics of the sum sensors as Home
+""", round 3: long-term statistics of the sum sensors as Home
 Assistant compiles them. ``Recorder`` repeats the loop of
 homeassistant/components/sensor/recorder.py (compile_statistics, the part
 with last_reset / old_state / new_state / _sum, HA 2026.9.3, lines ~723-822);
@@ -64,7 +64,7 @@ class World:
         self.t = start
         charger_mod._now = lambda: self.t
         self.saved = {}
-        self.c = Charger("102512111615", TZ, stored, self.saved.update, "PL")
+        self.c = Charger("101234567891", TZ, stored, self.saved.update, "PL")
         self.c.adopt(ChargerSettings(max_current_a=16, phases=3, tariff=Tariff(price=1.0)))
         self.rec = recorders or {k: Recorder() for k in KEYS}
         self.snap()

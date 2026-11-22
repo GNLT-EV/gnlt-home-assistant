@@ -1,4 +1,4 @@
-"""Review 5 (independent agent, 04.10.2026): regressions and gaps found in the
+""" (independent agent): regressions and gaps found in the
 ledger rework against 5577f19. Each failed before the fix."""
 
 import asyncio
@@ -31,7 +31,7 @@ async def start_tx(st, meter_start=0):
     return r[2]["transactionId"]
 
 
-# --- R1: stop under the number of an EARLIER charge (partner's bench 25.09) ----
+# --- R1: stop under the number of an EARLIER charge ----
 
 
 def test_r1a_charge_run_under_old_number_whose_stop_was_lost():

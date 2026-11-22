@@ -1,7 +1,7 @@
 """Diagnostics download: Settings -> Devices & services -> GNLT EV Charger ->
 the charger -> "Download diagnostics".
 
-One file the owner can send to support: settings, what the charger reports,
+One file the user can send to support: settings, what the charger reports,
 the counters and the last OCPP frames in both directions - what a debug log
 would show, without turning debug logging on and waiting for the problem
 again. Wi-Fi name and password are never stored by the integration; they are
@@ -20,13 +20,21 @@ from homeassistant.core import HomeAssistant
 from homeassistant.helpers.device_registry import DeviceEntry
 from homeassistant.loader import async_get_integration
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .const import DOMAIN
 
 TO_REDACT = {"password", "ssid", "address"}
 
 
 async def async_get_config_entry_diagnostics(hass: HomeAssistant, entry: GnltConfigEntry) -> dict[str, Any]:
+    if is_site(entry):
+        from .site.diagnostics import async_get_site_diagnostics
+
+        return await async_get_site_diagnostics(hass, entry)
+    if is_modbus(entry):
+        from .modbus.diagnostics import async_get_modbus_diagnostics
+
+        return await async_get_modbus_diagnostics(hass, entry)
     charger = entry.runtime_data
     integration = await async_get_integration(hass, DOMAIN)
     settings = asdict(charger.settings)

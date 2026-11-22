@@ -14,7 +14,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .entity import GnltEntity
 
@@ -25,10 +25,10 @@ class GnltBinaryDescription(BinarySensorEntityDescription):
     always_available: bool = False
 
 
-# Warnings are shown as "Да / Нет" with their own icons, NOT with the "problem"
+# Warnings are shown as "Yes / No" with their own icons, NOT with the "problem"
 # device class: with it Home Assistant writes "OK" in the normal state, and
-# "Машина не начала заряжаться: OK" reads like the car is fine (owner, 24.09.2026).
-# They live under "Diagnostics": the device page sorts by name, and two "Нет"
+# "The car did not start charging: OK" reads like the car is fine.
+# They live under "Diagnostics": the device page sorts by name, and two "No"
 # lines on top pushed power and status down. When one of them turns on, the
 # person gets a notification with what to do (notifications.py).
 
@@ -80,6 +80,16 @@ BINARY_SENSORS: tuple[GnltBinaryDescription, ...] = (
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "binary_sensor")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "binary_sensor")
+        return
     charger = entry.runtime_data
     async_add_entities(GnltBinarySensor(charger, d) for d in BINARY_SENSORS)
 

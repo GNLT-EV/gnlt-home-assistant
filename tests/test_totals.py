@@ -2,8 +2,7 @@
 
 Home Assistant counts the whole value of a NEW cycle as consumed since its
 start. Announcing the running day's start at an update from 0.2.8 - when that
-day's energy was already counted - added it again (stand, 04.10.2026:
-"Energy today" +19.99 kWh in the long-term statistics)."""
+day's energy was already counted - added it again."""
 
 from datetime import datetime
 from zoneinfo import ZoneInfo

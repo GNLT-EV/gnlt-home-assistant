@@ -5,8 +5,10 @@
       "user": {
         "title": "Dodaj ładowarkę GNLT",
         "menu_options": {
-          "pick_device": "Skonfiguruj ładowarkę przez Bluetooth (zalecane)",
-          "manual": "Ładowarka jest już w sieci — wprowadź jej numer"
+          "pick_device": "Skonfiguruj ładowarkę przez Bluetooth (OCPP, zalecane)",
+          "manual": "OCPP: ładowarka jest już w sieci — wprowadź jej numer",
+          "modbus_intro": "ModBus TCP (sieć lokalna)",
+          "site": "Instalacja GNLT: zarządzanie mocą i PV dla kilku ładowarek ModBus (beta)"
         }
       },
       "bluetooth_confirm": {
@@ -72,6 +74,72 @@
         "data": {
           "preset": "Wersja ładowarki"
         }
+      },
+      "modbus_intro": {
+        "title": "ModBus TCP: zanim zaczniesz",
+        "description": "W trybie ModBus Home Assistant łączy się z ładowarką bezpośrednio w sieci lokalnej. Najpierw przygotuj ładowarkę:\n\n1. **Wi-Fi.** Połącz ładowarkę z Wi-Fi (2,4 GHz) w aplikacji ładowarki przez Bluetooth, z włączonym DHCP, i zarezerwuj jej adres IP w routerze (albo ustaw stały adres IP w aplikacji). ModBus TCP działa tylko przez Wi-Fi. Gdy ModBus jest włączony, ładowarki nie można skonfigurować przez Bluetooth.\n2. **Menu „Load & communication”.** Włącz równoważenie obciążenia i wybierz tryb komunikacji **ModBus TCP** (nie RS485 i nie EM3-Box). OCPP i ModBus nie działają jednocześnie.\n3. **Menu „Current adjustment”.** Ustaw tu maksymalny prąd ładowarki: ładowarka stosuje niższą z dwóch wartości — tę albo limit ustawiony w Home Assistant.\n4. **Menu „Charge mode”.** Wyłącz Plug & charge, aby uruchamiać i zatrzymywać ładowanie z Home Assistant (fabrycznie jest włączony).\n5. Wyłącz własne rezerwacje ładowarki (kolidują z harmonogramem Home Assistant) i ustaw w ładowarce datę i godzinę.\n6. Wyłącz „1-phase mode” ładowarki, jeśli chcesz przełączać między 1 a 3 fazami.\n7. **Tylko jeden program ModBus.** Wyłącz evcc i inne integracje lub urządzenia korzystające z ModBus tej ładowarki."
+      },
+      "modbus_address": {
+        "title": "ModBus TCP: adres ładowarki",
+        "description": "Jeśli ładowarka nie odpowiada, odczekaj 3 minuty przed kolejną próbą.",
+        "data": {
+          "host": "Adres IP lub nazwa hosta",
+          "port": "Port"
+        },
+        "data_description": {
+          "host": "Widoczny w menu Wi-Fi ładowarki, np. 192.168.1.50.",
+          "port": "Pozostaw 502."
+        }
+      },
+      "modbus_model": {
+        "title": "ModBus TCP: ładowarka {serial}",
+        "description": "Sprawdź wersję ładowarki — od niej zależy maksymalny prąd.\n\nZatrzymanie ładowania i zmiana faz w trakcie ładowania przez ModBus wymagają oprogramowania 3.1 lub nowszego (wersja jest widoczna na ekranie ładowarki). Przy starszym oprogramowaniu, na przykład 2.7, ładowarka nie zatrzymuje się po poleceniu zatrzymania: obniża prąd do minimum i nie przyjmuje nowych poleceń, dopóki kabel nie zostanie odłączony od samochodu. Aby zatrzymać ładowanie przy takim oprogramowaniu, odłącz kabel od samochodu. Aby mieć pełne sterowanie, użyj połączenia OCPP.\n\nJeśli ta ładowarka ma też wpis OCPP, będzie on pokazywał „brak połączenia”, dopóki ładowarka jest w trybie ModBus; możesz go wyłączyć.",
+        "data": {
+          "preset": "Wersja ładowarki"
+        }
+      },
+      "site": {
+        "title": "Instalacja GNLT: przyłącze (beta)",
+        "description": "Instalacja steruje wybranymi ładowarkami ModBus razem: żadna faza przyłącza nie przekracza limitu bezpiecznika, a każda ładowarka może ładować z nadwyżki PV (tryb ładowania na stronie jej urządzenia).\n\nLicznik sieci: jeden czujnik prądu na fazę, w amperach, pobór dodatni, oddawanie ujemne. Jeśli licznik pokazuje pobór jako ujemny, włącz „Odwróć znak”.\n\nTa funkcja jest w wersji beta i nie zastępuje zabezpieczeń elektrycznych instalacji (wyłącznika nadprądowego).",
+        "data": {
+          "grid_current_l1": "Prąd sieci L1",
+          "grid_current_l2": "Prąd sieci L2",
+          "grid_current_l3": "Prąd sieci L3",
+          "grid_invert": "Odwróć znak czujników sieci",
+          "grid_power": "Moc sieci (opcjonalnie, dla PV)",
+          "pv_power": "Moc PV (opcjonalnie)",
+          "meter_period_s": "Okres odświeżania licznika",
+          "fuse_limit_a": "Limit bezpiecznika na fazę",
+          "max_total_power_w": "Limit mocy całkowitej (0 = brak)",
+          "meter_failure_action": "Przy awarii licznika sieci",
+          "stations": "Ładowarki tej instalacji"
+        },
+        "data_description": {
+          "meter_period_s": "Jak często czujniki licznika dostają nową wartość; instalacja pracuje w tym samym rytmie (domyślnie 10 s).",
+          "max_total_power_w": "Limit całego przyłącza w watach, jeśli wynika z umowy.",
+          "grid_power": "Bez niego moc sieci jest liczona z trzech prądów x 230 V."
+        }
+      },
+      "site_member": {
+        "title": "Instalacja GNLT: ładowarka {name} (beta)",
+        "description": "Priorytet: 1 jest obsługiwany jako pierwszy; ładowarki z tym samym numerem dzielą się po równo.\n\nFaza sieci dla L1 ładowarki: faza przyłącza, do której podłączony jest zacisk L1 (podłączenie z przesunięciem faz rozkłada auta jednofazowe na różne fazy).",
+        "data": {
+          "priority": "Priorytet",
+          "phase_1": "Faza sieci dla L1 ładowarki"
+        }
+      },
+      "site_pv": {
+        "title": "Instalacja GNLT: ładowanie z PV (beta)",
+        "description": "Używane w trybach ładowania „PV” i „Min + PV”. Wartości domyślne: start, gdy nadwyżka pokrywa prąd minimalny przez 1 minutę, stop, gdy jej brakuje przez 3 minuty.",
+        "data": {
+          "enable_threshold_w": "Próg startu (moc sieci)",
+          "disable_threshold_w": "Próg zatrzymania (moc sieci)",
+          "enable_delay_s": "Opóźnienie startu",
+          "disable_delay_s": "Opóźnienie zatrzymania"
+        },
+        "data_description": {
+          "enable_threshold_w": "0 = automatycznie: nadwyżka musi pokryć prąd minimalny. Wartość ujemna to oddawanie potrzebne do startu."
+        }
       }
     },
     "progress": {
@@ -94,7 +162,21 @@
       "ble_connect_failed": "Nie udało się połączyć z ładowarką. Wyłącz OCPP na ładowarce, zamknij aplikację na telefonie i kliknij „Zatwierdź”.",
       "ble_no_answer": "Ładowarka nie odpowiada. Zamknij aplikację na telefonie i kliknij „Zatwierdź”.",
       "ble_rejected": "Ładowarka nie przyjęła ustawień. Kliknij ponownie „Zatwierdź”.",
-      "ble_failed": "Konfiguracja przez Bluetooth nie powiodła się. Przysuń adapter Bluetooth bliżej ładowarki i kliknij „Zatwierdź”."
+      "ble_failed": "Konfiguracja przez Bluetooth nie powiodła się. Przysuń adapter Bluetooth bliżej ładowarki i kliknij „Zatwierdź”.",
+      "mb_host_empty": "Wpisz adres IP lub nazwę hosta ładowarki.",
+      "mb_cannot_resolve": "Nie można znaleźć tej nazwy hosta w sieci. Wpisz adres IP ładowarki.",
+      "mb_no_answer": "Ładowarka nie odpowiedziała. Odczekaj 3 minuty i spróbuj ponownie.",
+      "mb_refused": "Ładowarka odrzuca połączenie: w menu ładowarki (Load & communication) nie wybrano ModBus TCP, ładowarka jest w trybie OCPP albo wciąż utrzymuje poprzednie połączenie. Spróbuj za 3 minuty; jeśli to się powtarza, wyłącz zasilanie ładowarki na 10 sekund.",
+      "mb_unreachable": "Ładowarka jest niedostępna w sieci. Sprawdź jej Wi-Fi i adres IP (menu Wi-Fi ładowarki).",
+      "mb_busy": "Ładowarka jest zajęta: połączony jest inny program ModBus albo połączenie nastąpiło przed chwilą. Spróbuj za 3 minuty.",
+      "mb_not_ready": "Ładowarka odpowiedziała pustymi danymi — prawdopodobnie jeszcze się uruchamia. Spróbuj za minutę.",
+      "mb_not_gnlt": "Urządzenie pod tym adresem nie podało numeru seryjnego GNLT.",
+      "mb_exception": "Urządzenie odpowiedziało, ale nie tak jak ładowarka GNLT. Sprawdź, czy to ładowarka GNLT i czy w jej menu wybrano ModBus TCP.",
+      "mb_address_unknown": "Inna ładowarka dodana w trybie ModBus nie jest połączona, a jej adresu nie da się ustalić, więc Home Assistant nie może wykluczyć, że pod tym adresem jest właśnie ona. Spróbuj ponownie, gdy tamta ładowarka będzie połączona, albo popraw jej adres.",
+      "site_no_members": "Wybierz co najmniej jedną ładowarkę.",
+      "site_grid_missing": "Wybierz czujnik prądu dla każdej fazy.",
+      "site_grid_same": "Wybierz inny czujnik dla każdej fazy.",
+      "site_power_same": "Moc sieci i moc PV muszą pochodzić z różnych czujników."
     },
     "abort": {
       "already_configured": "Ta ładowarka jest już dodana.",
@@ -103,7 +185,12 @@
       "reprovisioned": "Ładowarka otrzymała nowe ustawienia. Poczekaj, aż na ekranie ładowarki pojawi się ikona Wi-Fi, naciśnij OK, wybierz Wi-Fi, włącz OCPP i wyjdź z menu.",
       "ble_not_charger": "To nie jest ładowarka GNLT.",
       "firmware_too_old": "Ta wersja ładowarki nie może współpracować z Home Assistantem przez OCPP. Skontaktuj się ze sprzedawcą.",
-      "continue_setup": "Kontynuujemy konfigurację."
+      "continue_setup": "Kontynuujemy konfigurację.",
+      "address_in_use": "Ten adres jest już używany przez ładowarkę dodaną w trybie ModBus.",
+      "site_no_modbus": "Najpierw dodaj ładowarki w trybie ModBus TCP; instalacja steruje tylko ładowarkami ModBus."
+    },
+    "create_entry": {
+      "modbus_created": "Ładowarka została dodana."
     }
   },
   "options": {
@@ -127,7 +214,92 @@
           "night_price": "Dla taryfy dwustrefowej. 0 oznacza taryfę jednostrefową. Energia dostarczona w nocy jest liczona według tej ceny, nawet jeśli ładowanie zaczęło się w dzień."
         },
         "description": "Ceny podane są za 1 kWh, w walucie ustawionej w Home Assistant ({currency})."
+      },
+      "modbus": {
+        "title": "Ustawienia ładowarki (ModBus)",
+        "description": "Ceny podane są za 1 kWh, w walucie ustawionej w Home Assistant ({currency}). Nowy adres lub port powoduje ponowne połączenie z ładowarką; pozostałe ustawienia działają od razu.",
+        "data": {
+          "preset": "Wersja ładowarki",
+          "host": "Adres IP lub nazwa hosta",
+          "port": "Port",
+          "auto_start": "Start po podłączeniu kabla",
+          "resume_after_power_loss": "Kontynuuj ładowanie po zaniku zasilania",
+          "price": "Cena energii elektrycznej",
+          "night_price": "Cena nocna",
+          "night_start": "Taryfa nocna od",
+          "night_end": "Taryfa nocna do",
+          "energy_source": "Źródło danych o energii",
+          "meter_interval": "Co ile sekund Home Assistant odczytuje ładowarkę"
+        },
+        "data_description": {
+          "auto_start": "Home Assistant sam rozpoczyna ładowanie, gdy podłączysz kabel do samochodu. Nie działa razem z harmonogramem: włączenie jednej opcji wyłącza drugą.",
+          "resume_after_power_loss": "Jeśli ładowarka uruchomi się ponownie w trakcie ładowania (np. po zaniku zasilania), Home Assistant wznowi ładowanie.",
+          "price": "Cena za 1 kWh. 0 — koszt nie jest obliczany.",
+          "night_price": "Dla taryfy dwustrefowej. 0 oznacza taryfę jednostrefową.",
+          "energy_source": "Moc w czasie (domyślnie) albo własny licznik ładowarki. Obowiązuje od następnego ładowania."
+        }
+      },
+      "site": {
+        "title": "Instalacja GNLT: przyłącze (beta)",
+        "description": "Instalacja steruje wybranymi ładowarkami ModBus razem: żadna faza przyłącza nie przekracza limitu bezpiecznika, a każda ładowarka może ładować z nadwyżki PV (tryb ładowania na stronie jej urządzenia).\n\nLicznik sieci: jeden czujnik prądu na fazę, w amperach, pobór dodatni, oddawanie ujemne. Jeśli licznik pokazuje pobór jako ujemny, włącz „Odwróć znak”.\n\nTa funkcja jest w wersji beta i nie zastępuje zabezpieczeń elektrycznych instalacji (wyłącznika nadprądowego).",
+        "data": {
+          "grid_current_l1": "Prąd sieci L1",
+          "grid_current_l2": "Prąd sieci L2",
+          "grid_current_l3": "Prąd sieci L3",
+          "grid_invert": "Odwróć znak czujników sieci",
+          "grid_power": "Moc sieci (opcjonalnie, dla PV)",
+          "pv_power": "Moc PV (opcjonalnie)",
+          "meter_period_s": "Okres odświeżania licznika",
+          "fuse_limit_a": "Limit bezpiecznika na fazę",
+          "max_total_power_w": "Limit mocy całkowitej (0 = brak)",
+          "meter_failure_action": "Przy awarii licznika sieci",
+          "stations": "Ładowarki tej instalacji"
+        },
+        "data_description": {
+          "meter_period_s": "Jak często czujniki licznika dostają nową wartość; instalacja pracuje w tym samym rytmie (domyślnie 10 s).",
+          "max_total_power_w": "Limit całego przyłącza w watach, jeśli wynika z umowy.",
+          "grid_power": "Bez niego moc sieci jest liczona z trzech prądów x 230 V."
+        }
+      },
+      "site_member": {
+        "title": "Instalacja GNLT: ładowarka {name} (beta)",
+        "description": "Priorytet: 1 jest obsługiwany jako pierwszy; ładowarki z tym samym numerem dzielą się po równo.\n\nFaza sieci dla L1 ładowarki: faza przyłącza, do której podłączony jest zacisk L1 (podłączenie z przesunięciem faz rozkłada auta jednofazowe na różne fazy).",
+        "data": {
+          "priority": "Priorytet",
+          "phase_1": "Faza sieci dla L1 ładowarki"
+        }
+      },
+      "site_pv": {
+        "title": "Instalacja GNLT: ładowanie z PV (beta)",
+        "description": "Używane w trybach ładowania „PV” i „Min + PV”. Wartości domyślne: start, gdy nadwyżka pokrywa prąd minimalny przez 1 minutę, stop, gdy jej brakuje przez 3 minuty.",
+        "data": {
+          "enable_threshold_w": "Próg startu (moc sieci)",
+          "disable_threshold_w": "Próg zatrzymania (moc sieci)",
+          "enable_delay_s": "Opóźnienie startu",
+          "disable_delay_s": "Opóźnienie zatrzymania"
+        },
+        "data_description": {
+          "enable_threshold_w": "0 = automatycznie: nadwyżka musi pokryć prąd minimalny. Wartość ujemna to oddawanie potrzebne do startu."
+        }
       }
+    },
+    "error": {
+      "mb_host_empty": "Wpisz adres IP lub nazwę hosta ładowarki.",
+      "mb_cannot_resolve": "Nie można znaleźć tej nazwy hosta w sieci. Wpisz adres IP ładowarki.",
+      "mb_no_answer": "Ładowarka nie odpowiedziała pod nowym adresem. Odczekaj 3 minuty i spróbuj ponownie.",
+      "mb_refused": "Ładowarka odrzuca połączenie: w menu ładowarki nie wybrano ModBus TCP, ładowarka jest w trybie OCPP albo wciąż utrzymuje poprzednie połączenie.",
+      "mb_unreachable": "Ładowarka jest niedostępna pod nowym adresem. Sprawdź jej Wi-Fi i adres IP.",
+      "mb_busy": "Ładowarka jest zajęta: połączony jest inny program ModBus albo połączenie nastąpiło przed chwilą. Spróbuj za 3 minuty.",
+      "mb_not_ready": "Ładowarka odpowiedziała pustymi danymi — prawdopodobnie jeszcze się uruchamia. Spróbuj za minutę.",
+      "mb_not_gnlt": "Urządzenie pod nowym adresem nie podało numeru seryjnego GNLT.",
+      "mb_serial_mismatch": "Pod nowym adresem odpowiada inna ładowarka. Adres nie został zmieniony.",
+      "address_in_use": "Ten adres jest już używany przez inną ładowarkę.",
+      "mb_exception": "Urządzenie odpowiedziało, ale nie tak jak ładowarka GNLT. Sprawdź, czy to ładowarka GNLT i czy w jej menu wybrano ModBus TCP.",
+      "mb_address_unknown": "Inna ładowarka dodana w trybie ModBus nie jest połączona, a jej adresu nie da się ustalić, więc Home Assistant nie może wykluczyć, że pod tym adresem jest właśnie ona. Spróbuj ponownie, gdy tamta ładowarka będzie połączona, albo popraw jej adres.",
+      "site_no_members": "Wybierz co najmniej jedną ładowarkę.",
+      "site_grid_missing": "Wybierz czujnik prądu dla każdej fazy.",
+      "site_grid_same": "Wybierz inny czujnik dla każdej fazy.",
+      "site_power_same": "Moc sieci i moc PV muszą pochodzić z różnych czujników."
     }
   },
   "selector": {
@@ -138,6 +310,26 @@
         "1_11": "Jednofazowa 11 kW — 48 A",
         "3_11": "Trójfazowa 11 kW — 3 × 16 A",
         "3_22": "Trójfazowa 22 kW — 3 × 32 A"
+      }
+    },
+    "mb_energy_source": {
+      "options": {
+        "integral": "Moc w czasie (obliczenie)",
+        "register": "Licznik ładowarki"
+      }
+    },
+    "site_failure_action": {
+      "options": {
+        "openwb": "Ogranicz wszystkie ładowarki łącznie do 7 kW (w granicach bezpiecznika)",
+        "minimum": "Wszystkie ładowarki na prądzie minimalnym, w granicach bezpiecznika",
+        "stop": "Zatrzymaj wszystkie ładowarki"
+      }
+    },
+    "site_phase_1": {
+      "options": {
+        "1": "L1",
+        "2": "L2",
+        "3": "L3"
       }
     }
   },
@@ -240,6 +432,121 @@
       },
       "next_start": {
         "name": "Następny start z harmonogramu"
+      },
+      "mb_status": {
+        "name": "Stan",
+        "state": {
+          "unknown": "Nieznany",
+          "standby": "Wolna",
+          "connected": "Kabel podłączony",
+          "starting": "Rozpoczynanie ładowania",
+          "charging": "Ładowanie",
+          "start_failed": "Nieudany start",
+          "finished": "Ładowanie zakończone",
+          "fault": "Usterka",
+          "scheduled": "Oczekiwanie na własny harmonogram ładowarki",
+          "firmware_update": "Aktualizacja oprogramowania",
+          "booting": "Uruchamia się"
+        }
+      },
+      "mb_error": {
+        "name": "Komunikat ładowarki",
+        "state": {
+          "no_error": "Brak komunikatów",
+          "cp_fault": "Błąd sygnału CP",
+          "emergency_stop": "Wciśnięty wyłącznik awaryjny",
+          "under_voltage": "Napięcie sieci poniżej normy",
+          "over_voltage": "Napięcie sieci powyżej normy",
+          "over_temperature": "Ładowarka przegrzała się",
+          "meter_fault": "Błąd licznika",
+          "leakage_fault": "Prąd upływu",
+          "output_short": "Zwarcie na wyjściu",
+          "over_current": "Prąd powyżej limitu",
+          "vehicle_fault": "Błąd samochodu",
+          "vehicle_timeout": "Samochód nie odpowiada",
+          "relay_welded": "Sklejony przekaźnik mocy — potrzebny serwis",
+          "rcd_fault": "Błąd wyłącznika różnicowoprądowego",
+          "pe_fault": "Błąd uziemienia (PE)",
+          "startup_fault": "Błąd przy uruchamianiu",
+          "unknown": "Inny komunikat"
+        }
+      },
+      "mb_current_setpoint": {
+        "name": "Prąd zadany ładowarki"
+      },
+      "mb_min_current": {
+        "name": "Prąd minimalny"
+      },
+      "mb_max_current": {
+        "name": "Prąd maksymalny"
+      },
+      "mb_cable_max_current": {
+        "name": "Maksymalny prąd kabla"
+      },
+      "mb_fallback_current": {
+        "name": "Prąd przy utracie połączenia"
+      },
+      "mb_comm_timeout": {
+        "name": "Limit czasu komunikacji"
+      },
+      "mb_station_meter": {
+        "name": "Licznik ładowarki"
+      },
+      "mb_charge_duration": {
+        "name": "Czas ładowania"
+      },
+      "mb_link_errors_24h": {
+        "name": "Błędy połączenia (24 h)"
+      },
+      "mb_last_link_error": {
+        "name": "Ostatni błąd połączenia"
+      },
+      "site_grid_current_l1": {
+        "name": "Prąd sieci L1"
+      },
+      "site_grid_current_l2": {
+        "name": "Prąd sieci L2"
+      },
+      "site_grid_current_l3": {
+        "name": "Prąd sieci L3"
+      },
+      "site_headroom_l1": {
+        "name": "Zapas L1"
+      },
+      "site_headroom_l2": {
+        "name": "Zapas L2"
+      },
+      "site_headroom_l3": {
+        "name": "Zapas L3"
+      },
+      "site_power": {
+        "name": "Moc sieci"
+      },
+      "site_pv_surplus": {
+        "name": "Nadwyżka PV"
+      },
+      "site_allowed_current": {
+        "name": "Dozwolony prąd {station}"
+      },
+      "site_meter_state": {
+        "name": "Licznik sieci",
+        "state": {
+          "ok": "OK",
+          "error_grace": "Błąd, oczekiwanie",
+          "not_new": "Brak nowej wartości",
+          "failed_error": "Awaria: błąd",
+          "failed_stale": "Awaria: brak odświeżenia",
+          "failed_frozen": "Awaria: wartość się nie zmienia"
+        }
+      },
+      "mb_power_l1": {
+        "name": "Moc L1"
+      },
+      "mb_power_l2": {
+        "name": "Moc L2"
+      },
+      "mb_power_l3": {
+        "name": "Moc L3"
       }
     },
     "binary_sensor": {
@@ -272,6 +579,13 @@
       },
       "out_of_service": {
         "name": "Złącze nieczynne",
+        "state": {
+          "on": "Tak",
+          "off": "Nie"
+        }
+      },
+      "mb_stop_not_working": {
+        "name": "Zatrzymanie nie działa",
         "state": {
           "on": "Tak",
           "off": "Nie"
@@ -316,6 +630,9 @@
       },
       "force_stop": {
         "name": "Przerwij ładowanie"
+      },
+      "mb_pnc_off_and_stop": {
+        "name": "Wyłącz „Podłącz i ładuj” i zatrzymaj"
       }
     },
     "time": {
@@ -333,6 +650,23 @@
           "all": "Codziennie",
           "weekdays": "Dni robocze",
           "weekends": "Weekendy"
+        }
+      },
+      "mb_phases": {
+        "name": "Fazy",
+        "state": {
+          "1": "1 faza",
+          "3": "3 fazy",
+          "auto": "Automatycznie"
+        }
+      },
+      "mb_loadpoint_mode": {
+        "name": "Tryb ładowania",
+        "state": {
+          "off": "Wyłączony",
+          "now": "Szybki",
+          "minpv": "Min + PV",
+          "pv": "PV"
         }
       }
     }
@@ -376,6 +710,85 @@
     },
     "replug": {
       "message": "Ostatnim razem samochód nie pobrał prądu i ładowarka nie przyjmie nowego startu. Odłącz kabel, podłącz go ponownie i rozpocznij ładowanie."
+    },
+    "not_ready": {
+      "message": "Po połączeniu ładowarka nie została jeszcze odczytana. Spróbuj za kilka sekund."
+    },
+    "identity_mismatch": {
+      "message": "Pod tym adresem odpowiada inna ładowarka. Polecenia są zablokowane, dopóki ta ładowarka znów nie odpowie."
+    },
+    "station_busy": {
+      "message": "Ładowarka nie przyjmuje teraz poleceń (stan {detail})."
+    },
+    "register_not_allowed": {
+      "message": "Tej wartości nie można zapisać w ładowarce."
+    },
+    "busy": {
+      "message": "Trwa wykonywanie innego polecenia. Spróbuj ponownie, gdy się zakończy."
+    },
+    "plug_and_charge_on": {
+      "message": "Włączony jest tryb „Podłącz i ładuj”: ładowarka sama rozpoczyna ładowanie po podłączeniu samochodu. Wyłącz go, aby uruchamiać i zatrzymywać ładowanie z Home Assistant."
+    },
+    "phase_refused_charging": {
+      "message": "Podczas ładowania nie można zmieniać faz. Najpierw zatrzymaj ładowanie."
+    },
+    "phase_refused_class_unknown": {
+      "message": "Ładowarka nie została jeszcze w pełni odczytana. Spróbuj ponownie za minutę albo wczytaj integrację ponownie."
+    },
+    "phase_refused_not_applicable": {
+      "message": "Ta ładowarka nie może teraz zmienić faz (wersja jednofazowa, oprogramowanie bez zmiany faz albo zmiana faz zablokowana do odłączenia kabla)."
+    },
+    "no_car": {
+      "message": "Samochód nie jest podłączony."
+    },
+    "site_member_pnc": {
+      "message": "Tą ładowarką steruje instalacja GNLT: trybu „Podłącz i ładuj” nie można włączyć, dopóki ładowarka należy do instalacji."
+    },
+    "mb_faulted": {
+      "message": "Ładowarka zgłasza błąd ({detail}) i nie może ładować."
+    },
+    "mb_faulted_replug": {
+      "message": "Ładowarka zgłasza błąd ({detail}) i nie może ładować. Odłącz kabel od samochodu i podłącz go ponownie."
+    }
+  },
+  "issues": {
+    "station_not_responding": {
+      "title": "{name}: brak połączenia przez ModBus",
+      "description": "Ładowarka od 3 minut nie odpowiada. Sprawdź po kolei:\n\n1. Odczekaj 3 minuty: po ponownym połączeniu ładowarka może milczeć, a po awarii systemu Home Assistant ładowarka może wciąż utrzymywać poprzednie połączenie.\n2. Żaden inny program nie korzysta z ModBus tej ładowarki (evcc, inne integracje, inne urządzenia na porcie 502).\n3. Ładowarka nie jest przełączona na OCPP.\n4. Adres IP ładowarki się nie zmienił (menu Wi-Fi ładowarki).\n5. W menu ładowarki wyłącz i ponownie włącz ModBus TCP lub równoważenie obciążenia.\n6. Wyłącz zasilanie ładowarki na co najmniej 10 sekund i odczekaj około 20 sekund.\n\nTen komunikat zniknie sam, gdy ładowarka znów odpowie."
+    },
+    "identity_mismatch": {
+      "title": "{name}: pod tym adresem odpowiada inna ładowarka",
+      "description": "Pod adresem tej ładowarki odpowiada inne urządzenie (numer seryjny {serial_seen}) — router mógł przydzielić ten adres innemu urządzeniu. Home Assistant nie wysyła poleceń, dopóki ta ładowarka znów nie odpowie. Zarezerwuj w routerze stały adres IP dla ładowarki i wpisz go w ustawieniach ładowarki."
+    },
+    "relay_welded": {
+      "title": "{name}: sklejony przekaźnik mocy — potrzebny serwis",
+      "description": "Ładowarka zgłasza sklejony przekaźnik mocy. To usterka istotna dla bezpieczeństwa: Home Assistant nie rozpocznie ładowania, dopóki ładowarka zgłasza ten błąd. Skontaktuj się ze sprzedawcą w sprawie serwisu."
+    },
+    "pnc_reset": {
+      "title": "{name}: ładowarka sama włączyła tryb „Podłącz i ładuj”",
+      "fix_flow": {
+        "step": {
+          "confirm": {
+            "title": "Wyłącz tryb „Podłącz i ładuj”",
+            "description": "Po zaniku zasilania ładowarka ponownie włączyła tryb „Podłącz i ładuj”. Teraz sama rozpoczyna ładowanie i nie przyjmuje poleceń startu i zatrzymania z Home Assistant. Kliknij „Zatwierdź”, aby ponownie wyłączyć ten tryb w ładowarce {name}, zgodnie z Twoim ustawieniem."
+          }
+        },
+        "error": {
+          "not_connected": "Ładowarka nie jest połączona. Spróbuj później.",
+          "not_ready": "Ładowarka nie została jeszcze odczytana. Spróbuj za kilka sekund.",
+          "identity_mismatch": "Pod tym adresem odpowiada inna ładowarka.",
+          "busy": "Trwa wykonywanie innego polecenia. Spróbuj za chwilę.",
+          "station_busy": "Ładowarka nie przyjmuje teraz poleceń. Spróbuj później.",
+          "write_failed": "Ładowarka nie przyjęła ustawienia. Spróbuj ponownie albo wyłącz Plug & charge w menu ładowarki."
+        },
+        "abort": {
+          "not_loaded": "Ładowarka nie jest wczytana w Home Assistant."
+        }
+      }
+    },
+    "site_stopped": {
+      "title": "{name}: zarządzanie mocą zatrzymane",
+      "description": "Instalacja GNLT przestała sterować ładowarkami ({reason}). Każda ładowarka została na prądzie minimalnym; instalacja niczego nie uruchamia ani nie zatrzymuje, dopóki nie zacznie znów działać. Wczytaj ponownie instalację w sekcji Ustawienia → Urządzenia oraz usługi; jeśli znów się zatrzyma, wyślij jej diagnostykę sprzedawcy."
     }
   }
 }

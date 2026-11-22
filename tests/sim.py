@@ -64,7 +64,7 @@ def meter(energy_wh: float, currents: dict[str, float], voltage: float = 230.0, 
 
 
 class FakeStation:
-    def __init__(self, port: int, identity: str = "102512111615") -> None:
+    def __init__(self, port: int, identity: str = "101234567891") -> None:
         self.url = f"ws://127.0.0.1:{port}/ocpp/{identity}"
         self.received: list[list[Any]] = []
         self._answers: dict[str, asyncio.Future] = {}

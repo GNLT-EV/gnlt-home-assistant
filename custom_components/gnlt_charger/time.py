@@ -13,7 +13,7 @@ from homeassistant.components.time import TimeEntity
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .const import CONF_SCHEDULE_END, CONF_SCHEDULE_START, DEFAULT_SCHEDULE_END, DEFAULT_SCHEDULE_START
 from .entity import GnltEntity
@@ -22,6 +22,16 @@ from .entity import GnltEntity
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "time")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "time")
+        return
     charger = entry.runtime_data
     async_add_entities(
         [

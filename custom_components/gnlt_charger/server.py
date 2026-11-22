@@ -44,7 +44,10 @@ class OcppServer:
     async def start(self) -> None:
         app = web.Application()
         app.router.add_get("/{tail:.*}", self._handle)
-        self._runner = web.AppRunner(app, access_log=None)
+        # Stopping waits for open handlers up to this, twice (wait, then
+        # cancel). aiohttp's 60 s held the setup lock about 2 minutes on a
+        # handshake we could not close.
+        self._runner = web.AppRunner(app, access_log=None, shutdown_timeout=5)
         await self._runner.setup()
         site = web.TCPSite(self._runner, self.host, self.port)
         await site.start()

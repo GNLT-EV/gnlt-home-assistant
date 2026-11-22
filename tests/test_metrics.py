@@ -13,7 +13,7 @@ def sv(measurand, value, unit=None, phase=None, **extra):
     return s
 
 
-# The frame our EVB11B sends (live, 04.10.2026 00:53): total power without a
+# The frame our EVB11B sends (live): total power without a
 # phase, voltage and current per phase.
 LIVE_ONE_PHASE = [
     sv("Energy.Active.Import.Register", 190, "Wh", location="Outlet"),

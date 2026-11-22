@@ -1,4 +1,4 @@
-"""Charging on/off and the owner's settings of the charger."""
+"""Charging on/off and the user's settings of the charger."""
 
 from __future__ import annotations
 
@@ -9,7 +9,7 @@ from homeassistant.const import EntityCategory
 from homeassistant.core import HomeAssistant
 from homeassistant.helpers.entity_platform import AddConfigEntryEntitiesCallback
 
-from . import GnltConfigEntry
+from . import GnltConfigEntry, is_modbus, is_site
 from .charger import Charger
 from .const import CONF_AUTO_START, CONF_RESUME, CONF_SCHEDULE, CONF_SCHEDULE_STOP
 from .entity import GnltEntity, run_command
@@ -18,6 +18,16 @@ from .entity import GnltEntity, run_command
 async def async_setup_entry(
     hass: HomeAssistant, entry: GnltConfigEntry, async_add_entities: AddConfigEntryEntitiesCallback
 ) -> None:
+    if is_site(entry):
+        from .site.entities import async_setup_site_platform
+
+        async_setup_site_platform(hass, entry, async_add_entities, "switch")
+        return
+    if is_modbus(entry):
+        from .modbus.entities import async_setup_platform
+
+        async_setup_platform(hass, entry, async_add_entities, "switch")
+        return
     charger = entry.runtime_data
     async_add_entities(
         [
